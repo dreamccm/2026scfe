@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>관리자 | 항공보안 히어로 미션</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@600;700&family=Noto+Sans+KR:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/admin.css" />
+</head>
+<body>
+
+<!-- 로그인 -->
+<div class="login-box" id="loginBox">
+  <h1>관리자 로그인</h1>
+  <div class="field">
+    <label class="field-label" for="loginEmail">이메일</label>
+    <input type="text" id="loginEmail" placeholder="admin@example.com" autocomplete="username" />
+  </div>
+  <div class="field">
+    <label class="field-label" for="loginPw">비밀번호</label>
+    <input type="text" id="loginPw" placeholder="비밀번호" autocomplete="current-password" style="-webkit-text-security:disc;" />
+  </div>
+  <button class="btn btn-primary" id="btnLogin">로그인</button>
+  <div class="error" id="loginError"></div>
+  <p style="font-size:11px;color:var(--text-muted);margin-top:14px">
+    계정이 없다면 README.md의 "관리자 계정 생성" 절차를 먼저 진행하세요.
+  </p>
+</div>
+
+<!-- 대시보드 -->
+<div class="admin-app" id="adminApp" style="display:none">
+  <div class="admin-topbar">
+    <div class="brand">AVSEC HERO 관리자<small>한국공항공사 항공보안교육센터</small></div>
+    <button class="btn btn-ghost" id="btnLogout" style="width:auto;margin:0;padding:8px 14px;font-size:12px">로그아웃</button>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card"><div class="num" id="statTotal">0</div><div class="lbl">총 참가자</div></div>
+    <div class="stat-card"><div class="num" id="statCompleted">0</div><div class="lbl">전체 미션 완료</div></div>
+    <div class="stat-card"><div class="num" id="statReward">0</div><div class="lbl">기념품 지급</div></div>
+    <div class="stat-card"><div class="num" id="statRate">0%</div><div class="lbl">완료율</div></div>
+  </div>
+
+  <div class="section-title">
+    <span>QR / 접속 링크</span>
+  </div>
+  <div class="qr-box">
+    <div id="qrCanvasHolder"></div>
+    <div class="qr-meta">
+      <label class="field-label" for="siteUrlInput">참가자용 페이지 URL (GitHub Pages 배포 주소)</label>
+      <input type="text" id="siteUrlInput" placeholder="https://your-id.github.io/repo-name/" />
+      <button class="btn btn-secondary" id="btnGenQr" style="width:auto;padding:10px 16px;font-size:13px;margin-top:6px">QR 생성</button>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <span>참가자 관리</span>
+  </div>
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="닉네임 검색" />
+    <button class="btn btn-secondary" id="btnExportCsv" style="width:auto">CSV 다운로드</button>
+    <div class="spacer"></div>
+  </div>
+  <div class="table-wrap">
+    <table class="participants">
+      <thead>
+        <tr>
+          <th>닉네임</th>
+          <th>보안검색(M1)</th>
+          <th>폭발물처리(M2)</th>
+          <th>보안관제(M3)</th>
+          <th>총점</th>
+          <th>총시간(s)</th>
+          <th>완료시각</th>
+          <th>기념품지급</th>
+        </tr>
+      </thead>
+      <tbody id="participantsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="danger-zone">
+    <h3>⚠ 데이터 초기화</h3>
+    <p>모든 참가자 기록을 영구 삭제합니다. 행사 시작 전 테스트 데이터 정리용으로만 사용하세요. 되돌릴 수 없습니다.</p>
+    <button class="btn" id="btnReset">전체 참가자 데이터 삭제</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+import { firebaseConfig } from "./firebase-config.js";
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  getDocs,
+  writeBatch,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let allRows = [];
+let unsubscribe = null;
+
+// ---------------------------------------------------------------------
+// 인증 상태
+// ---------------------------------------------------------------------
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("adminApp").style.display = "block";
+    startListener();
+  } else {
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("adminApp").style.display = "none";
+    if (unsubscribe) unsubscribe();
+  }
+});
+
+document.getElementById("btnLogin").addEventListener("click", async () => {
+  const email = document.getElementById("loginEmail").value.trim();
+  const pw = document.getElementById("loginPw").value;
+  const errEl = document.getElementById("loginError");
+  errEl.textContent = "";
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+  } catch (e) {
+    errEl.textContent = "로그인 실패: 이메일/비밀번호를 확인하세요.";
+  }
+});
+
+document.getElementById("btnLogout").addEventListener("click", () => signOut(auth));
+
+// ---------------------------------------------------------------------
+// 실시간 참가자 목록
+// ---------------------------------------------------------------------
+function startListener() {
+  const ref = collection(db, "participants");
+  unsubscribe = onSnapshot(
+    ref,
+    (snap) => {
+      allRows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAll();
+    },
+    (err) => {
+      console.error("참가자 목록 구독 실패", err);
+    }
+  );
+}
+
+function renderAll() {
+  const filter = document.getElementById("searchInput").value.trim().toLowerCase();
+  const rows = filter
+    ? allRows.filter((r) => (r.nickname || "").toLowerCase().includes(filter))
+    : allRows;
+  const sorted = [...rows].sort(
+    (a, b) => (b.totalScore || 0) - (a.totalScore || 0) || (a.totalTimeMs || 0) - (b.totalTimeMs || 0)
+  );
+  renderStats(allRows);
+  renderTable(sorted);
+}
+
+function renderStats(rows) {
+  const total = rows.length;
+  const completed = rows.filter((r) => r.completedAt).length;
+  const reward = rows.filter((r) => r.rewardGiven).length;
+  const rate = total ? Math.round((completed / total) * 100) : 0;
+  document.getElementById("statTotal").textContent = total;
+  document.getElementById("statCompleted").textContent = completed;
+  document.getElementById("statReward").textContent = reward;
+  document.getElementById("statRate").textContent = rate + "%";
+}
+
+function missionCell(m) {
+  if (!m) return '<span class="done-no">-</span>';
+  return `<span class="done-yes">${m.score}pt</span>`;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+}
+
+function renderTable(rows) {
+  const body = document.getElementById("participantsBody");
+  if (rows.length === 0) {
+    body.innerHTML =
+      '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">데이터가 없습니다</td></tr>';
+    return;
+  }
+  body.innerHTML = rows
+    .map((r) => {
+      const completedAt =
+        r.completedAt && r.completedAt.toDate ? r.completedAt.toDate().toLocaleString("ko-KR") : "-";
+      return `<tr>
+        <td>${escapeHtml(r.nickname || "-")}</td>
+        <td>${missionCell(r.mission1)}</td>
+        <td>${missionCell(r.mission2)}</td>
+        <td>${missionCell(r.mission3)}</td>
+        <td>${r.totalScore || 0}</td>
+        <td>${((r.totalTimeMs || 0) / 1000).toFixed(1)}</td>
+        <td>${completedAt}</td>
+        <td><button class="reward-toggle ${r.rewardGiven ? "on" : ""}" data-id="${r.id}"></button></td>
+      </tr>`;
+    })
+    .join("");
+
+  body.querySelectorAll(".reward-toggle").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      const current = btn.classList.contains("on");
+      btn.disabled = true;
+      try {
+        await updateDoc(doc(db, "participants", id), { rewardGiven: !current });
+      } catch (e) {
+        console.error(e);
+        alert("업데이트 실패: " + e.message);
+      }
+      btn.disabled = false;
+    });
+  });
+}
+
+document.getElementById("searchInput").addEventListener("input", renderAll);
+
+// ---------------------------------------------------------------------
+// CSV 다운로드
+// ---------------------------------------------------------------------
+document.getElementById("btnExportCsv").addEventListener("click", () => {
+  const header = [
+    "닉네임", "M1점수", "M1시간ms", "M2점수", "M2시간ms",
+    "M3점수", "M3시간ms", "총점", "총시간ms", "완료시각", "기념품지급",
+  ];
+  const lines = [header.join(",")];
+  allRows.forEach((r) => {
+    const completedAt = r.completedAt && r.completedAt.toDate ? r.completedAt.toDate().toISOString() : "";
+    const row = [
+      r.nickname || "",
+      r.mission1 ? r.mission1.score : "",
+      r.mission1 ? r.mission1.timeMs : "",
+      r.mission2 ? r.mission2.score : "",
+      r.mission2 ? r.mission2.timeMs : "",
+      r.mission3 ? r.mission3.score : "",
+      r.mission3 ? r.mission3.timeMs : "",
+      r.totalScore || 0,
+      r.totalTimeMs || 0,
+      completedAt,
+      r.rewardGiven ? "Y" : "N",
+    ];
+    lines.push(row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+  });
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `avsec_participants_${Date.now()}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// ---------------------------------------------------------------------
+// QR 코드 생성 (참가자 접속 URL)
+// ---------------------------------------------------------------------
+document.getElementById("btnGenQr").addEventListener("click", () => {
+  const url = document.getElementById("siteUrlInput").value.trim();
+  if (!url) {
+    alert("URL을 입력하세요");
+    return;
+  }
+  const holder = document.getElementById("qrCanvasHolder");
+  holder.innerHTML = "";
+  // eslint-disable-next-line no-undef
+  new QRCode(holder, { text: url, width: 120, height: 120 });
+});
+
+// ---------------------------------------------------------------------
+// 전체 데이터 초기화
+// ---------------------------------------------------------------------
+document.getElementById("btnReset").addEventListener("click", async () => {
+  if (!confirm("정말 모든 참가자 데이터를 삭제하시겠습니까?")) return;
+  if (!confirm("다시 한 번 확인합니다. 삭제 후 복구할 수 없습니다. 진행하시겠습니까?")) return;
+
+  const btn = document.getElementById("btnReset");
+  btn.disabled = true;
+  btn.textContent = "삭제 중...";
+  try {
+    const snap = await getDocs(collection(db, "participants"));
+    const docs = snap.docs;
+    const chunkSize = 400;
+    for (let i = 0; i < docs.length; i += chunkSize) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + chunkSize).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+    alert("삭제가 완료되었습니다.");
+  } catch (e) {
+    console.error(e);
+    alert("삭제 중 오류: " + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = "전체 참가자 데이터 삭제";
+});

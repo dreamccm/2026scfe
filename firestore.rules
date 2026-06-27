@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// =====================================================================
+// 적용 방법: Firebase 콘솔 > Firestore Database > 규칙 탭에 이 내용을 붙여넣고 게시
+// ⚠ 확인 필요: 게시 전 "규칙 플레이그라운드"에서 read/create/update 3가지 시나리오를
+//             직접 테스트해 의도대로 동작하는지 검증할 것 (특히 update 분기)
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /participants/{docId} {
+
+      // 리더보드/관리자 화면 모두 닉네임·점수만 노출되므로 공개 읽기 허용
+      allow read: if true;
+
+      // 참가자 최초 생성: 닉네임 형식만 검증, rewardGiven은 항상 false로 시작
+      allow create: if request.resource.data.nickname is string
+                    && request.resource.data.nickname.size() > 0
+                    && request.resource.data.nickname.size() <= 20
+                    && request.resource.data.rewardGiven == false;
+
+      // 수정: 관리자(로그인 상태)는 전체 허용.
+      // 비로그인 참가자는 자신의 미션 진행 데이터는 갱신 가능하나
+      // rewardGiven(기념품 지급 여부) 필드는 변경할 수 없음.
+      allow update: if request.auth != null
+                    || !("rewardGiven" in request.resource.data.diff(resource.data).affectedKeys());
+
+      // 삭제(데이터 초기화)는 관리자만 가능
+      allow delete: if request.auth != null;
+    }
+  }
+}
