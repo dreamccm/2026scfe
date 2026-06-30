@@ -146,3 +146,7 @@ table.participants .done-no { color: var(--text-muted); }
 .danger-zone h3 { color: var(--red); font-size: 14px; margin: 0 0 8px; }
 .danger-zone p { font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
 .danger-zone .btn { background: var(--red); color: #fff; width: auto; padding: 10px 16px; font-size: 13px; margin-top:0; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { opacity: 0.88; }
+table.participants th:first-child,
+table.participants td:first-child { text-align: center; width: 36px; padding: 0 4px; }
