@@ -60,12 +60,14 @@
   <div class="toolbar">
     <input type="text" id="searchInput" placeholder="닉네임 검색" />
     <button class="btn btn-secondary" id="btnExportCsv" style="width:auto">CSV 다운로드</button>
+    <button class="btn btn-danger" id="btnDeleteSelected" style="width:auto;display:none">선택 삭제 (<span id="selectedCount">0</span>건)</button>
     <div class="spacer"></div>
   </div>
   <div class="table-wrap">
     <table class="participants">
       <thead>
         <tr>
+          <th style="width:36px"><input type="checkbox" id="checkAll" title="전체 선택" /></th>
           <th>닉네임</th>
           <th>보안검색(M1)</th>
           <th>폭발물처리(M2)</th>
