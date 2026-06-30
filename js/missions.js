@@ -180,79 +180,117 @@ export async function startMission2(onComplete) {
 }
 
 // ---------------------------------------------------------------------
-// 미션 3: 보안관제요원 — CCTV 이상상황 포착
+// 미션 3: 공항 직업 커넥트 — 직업 아이콘과 직무 설명 짝맞추기
+// (출처: KAC "공항에서 찾아보는 다양한 직업들" 자료 기반)
 // ---------------------------------------------------------------------
+const JOB_PAIRS = [
+  { id: "pilot",    emoji: "✈️", label: "조종사",          duty: "비행기를 조종하는 하늘 위의 리더" },
+  { id: "atc",      emoji: "🗼", label: "관제사",          duty: "이륙·착륙 순서를 지정하고 안전한 길을 안내해요" },
+  { id: "fire",     emoji: "🚒", label: "공항소방대",      duty: "공항 내 사고에 신속히 출동해 인명을 구조해요" },
+  { id: "security", emoji: "🛂", label: "보안검색요원",    duty: "기내 반입 물품을 X-ray로 확인해요" },
+  { id: "eod",      emoji: "💣", label: "폭발물처리요원",  duty: "특수 장비로 의심물의 형태·성분을 확인해요" },
+  { id: "mech",     emoji: "🔧", label: "항공정비사",      duty: "항공기가 안전하게 날 수 있도록 이착륙 전후 점검하고 수리해요" },
+];
+
 export function startMission3(onComplete) {
   const grid = document.getElementById("m3-grid");
   const timerBar = document.getElementById("m3-timerBar");
   const timeLabel = document.getElementById("m3-timeLabel");
-  const roundLabel = document.getElementById("m3-roundLabel");
+  const statusLabel = document.getElementById("m3-roundLabel");
+  timerBar.classList.remove("danger");
+  grid.innerHTML = "";
 
-  const totalRounds = 3;
-  const cellsPerRound = 9;
-  const roundDuration = 8000;
-  const anomalyEmojis = ["🎒", "🚪", "📦", "🧯"];
+  const duration = 60000;
+  const start = performance.now();
+  let matched = 0,
+    wrong = 0,
+    finished = false,
+    selected = null,
+    raf;
 
-  let round = 0,
-    correctRounds = 0,
-    finished = false;
-  const startAll = performance.now();
+  statusLabel.textContent = `남은 짝: ${JOB_PAIRS.length}`;
 
-  function playRound() {
-    round++;
-    roundLabel.textContent = `ROUND ${round} / ${totalRounds}`;
-    timerBar.classList.remove("danger");
-    grid.innerHTML = "";
+  const tiles = shuffle([
+    ...JOB_PAIRS.map((j) => ({
+      pairId: j.id,
+      kind: "job",
+      html: `<div class="mt-icon">${j.emoji}</div><div class="mt-text">${j.label}</div>`,
+    })),
+    ...JOB_PAIRS.map((j) => ({
+      pairId: j.id,
+      kind: "duty",
+      html: `<div class="mt-text">${j.duty}</div>`,
+    })),
+  ]);
 
-    const anomalyIdx = Math.floor(Math.random() * cellsPerRound);
-    const anomalyEmoji = anomalyEmojis[Math.floor(Math.random() * anomalyEmojis.length)];
-    let roundDone = false;
-    const roundStart = performance.now();
-    let raf;
+  tiles.forEach((t) => {
+    const el = document.createElement("div");
+    el.className = "match-tile";
+    el.dataset.kind = t.kind;
+    el.innerHTML = t.html;
+    el.addEventListener("click", () => onTileClick(el, t));
+    grid.appendChild(el);
+  });
 
-    for (let i = 0; i < cellsPerRound; i++) {
-      const cell = document.createElement("div");
-      cell.className = "cctv-cell";
-      cell.textContent = i === anomalyIdx ? anomalyEmoji : "🧍";
-      cell.addEventListener("click", () => {
-        if (roundDone || finished) return;
-        roundDone = true;
-        if (i === anomalyIdx) correctRounds++;
-        nextStep();
-      });
-      grid.appendChild(cell);
+  function onTileClick(el, t) {
+    if (finished || el.classList.contains("matched") || el.classList.contains("selected")) return;
+
+    if (!selected) {
+      selected = { el, t };
+      el.classList.add("selected");
+      return;
+    }
+    if (selected.t.kind === t.kind) {
+      // 같은 종류(직업↔직업, 설명↔설명)를 다시 고르면 선택만 갈아탐
+      selected.el.classList.remove("selected");
+      selected = { el, t };
+      el.classList.add("selected");
+      return;
     }
 
-    function tick() {
-      const elapsed = performance.now() - roundStart;
-      const remain = Math.max(0, roundDuration - elapsed);
-      timerBar.style.width = (remain / roundDuration) * 100 + "%";
-      timeLabel.textContent = Math.ceil(remain / 1000) + "s";
-      if (remain <= 3000) timerBar.classList.add("danger");
-      if (remain <= 0) {
-        roundDone = true;
-        nextStep();
-        return;
-      }
-      if (!roundDone) raf = requestAnimationFrame(tick);
-    }
-    raf = requestAnimationFrame(tick);
-
-    function nextStep() {
-      cancelAnimationFrame(raf);
-      if (finished) return;
-      if (round >= totalRounds) end();
-      else setTimeout(playRound, 400);
+    if (selected.t.pairId === t.pairId) {
+      selected.el.classList.remove("selected");
+      selected.el.classList.add("matched");
+      el.classList.add("matched");
+      matched++;
+      statusLabel.textContent = `남은 짝: ${JOB_PAIRS.length - matched}`;
+      selected = null;
+      if (matched >= JOB_PAIRS.length) endGame(true);
+    } else {
+      wrong++;
+      const prevEl = selected.el;
+      el.classList.add("wrong");
+      prevEl.classList.add("wrong");
+      setTimeout(() => {
+        el.classList.remove("wrong");
+        prevEl.classList.remove("wrong", "selected");
+      }, 350);
+      selected = null;
     }
   }
 
-  playRound();
+  function tick() {
+    const elapsed = performance.now() - start;
+    const remain = Math.max(0, duration - elapsed);
+    timerBar.style.width = (remain / duration) * 100 + "%";
+    timeLabel.textContent = Math.ceil(remain / 1000) + "s";
+    if (remain <= 10000) timerBar.classList.add("danger");
+    if (remain <= 0) {
+      endGame(false);
+      return;
+    }
+    if (!finished) raf = requestAnimationFrame(tick);
+  }
+  raf = requestAnimationFrame(tick);
 
-  function end() {
+  function endGame(cleared) {
     if (finished) return;
     finished = true;
-    const elapsed = performance.now() - startAll;
-    const score = Math.round((correctRounds / totalRounds) * 100);
+    cancelAnimationFrame(raf);
+    const elapsed = performance.now() - start;
+    let score = matched * 20 - wrong * 5;
+    if (cleared) score += Math.round((duration - elapsed) / 1000) * 2;
+    score = Math.max(0, Math.min(100, score));
     onComplete({ score, timeMs: Math.round(elapsed) });
   }
 }
