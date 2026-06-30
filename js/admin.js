@@ -109,14 +109,16 @@ function renderTable(rows) {
   const body = document.getElementById("participantsBody");
   if (rows.length === 0) {
     body.innerHTML =
-      '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">데이터가 없습니다</td></tr>';
+      '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">데이터가 없습니다</td></tr>';
+    updateDeleteBtn();
     return;
   }
   body.innerHTML = rows
     .map((r) => {
       const completedAt =
         r.completedAt && r.completedAt.toDate ? r.completedAt.toDate().toLocaleString("ko-KR") : "-";
-      return `<tr>
+      return `<tr data-id="${r.id}">
+        <td><input type="checkbox" class="row-check" data-id="${r.id}" /></td>
         <td>${escapeHtml(r.nickname || "-")}</td>
         <td>${missionCell(r.mission1)}</td>
         <td>${missionCell(r.mission2)}</td>
@@ -143,9 +145,61 @@ function renderTable(rows) {
       btn.disabled = false;
     });
   });
+
+  body.querySelectorAll(".row-check").forEach((cb) => {
+    cb.addEventListener("change", updateDeleteBtn);
+  });
+
+  // 전체선택 체크박스 상태 동기화
+  document.getElementById("checkAll").checked = false;
+  updateDeleteBtn();
 }
 
 document.getElementById("searchInput").addEventListener("input", renderAll);
+
+// 전체 선택 체크박스
+document.getElementById("checkAll").addEventListener("change", (e) => {
+  document.querySelectorAll(".row-check").forEach((cb) => {
+    cb.checked = e.target.checked;
+  });
+  updateDeleteBtn();
+});
+
+// 선택삭제 버튼 표시 갱신
+function updateDeleteBtn() {
+  const checked = document.querySelectorAll(".row-check:checked");
+  const btn = document.getElementById("btnDeleteSelected");
+  const countEl = document.getElementById("selectedCount");
+  countEl.textContent = checked.length;
+  btn.style.display = checked.length > 0 ? "inline-flex" : "none";
+}
+
+// 선택 삭제 실행
+document.getElementById("btnDeleteSelected").addEventListener("click", async () => {
+  const checked = [...document.querySelectorAll(".row-check:checked")];
+  if (checked.length === 0) return;
+  const ids = checked.map((cb) => cb.dataset.id);
+  const nicknames = ids.map((id) => {
+    const row = allRows.find((r) => r.id === id);
+    return row ? row.nickname : id;
+  });
+  if (!confirm(`선택한 ${ids.length}명의 기록을 삭제합니다:\n${nicknames.join(", ")}\n\n계속하시겠습니까?`)) return;
+
+  const btn = document.getElementById("btnDeleteSelected");
+  btn.disabled = true;
+  btn.textContent = "삭제 중...";
+  try {
+    const batch = writeBatch(db);
+    ids.forEach((id) => batch.delete(doc(db, "participants", id)));
+    await batch.commit();
+    document.getElementById("checkAll").checked = false;
+  } catch (e) {
+    console.error(e);
+    alert("삭제 중 오류: " + e.message);
+  }
+  btn.disabled = false;
+  updateDeleteBtn();
+});
 
 // ---------------------------------------------------------------------
 // CSV 다운로드
