@@ -214,9 +214,59 @@ function escapeHtml(str) {
 }
 
 // ---------------------------------------------------------------------
+// 카운트다운 유틸 (미션 1·2 공용, 3초)
+// ---------------------------------------------------------------------
+function runCountdown(onDone) {
+  showScreen("screen-countdown");
+  const numEl = document.getElementById("countdownNum");
+  let count = 3;
+  numEl.textContent = count;
+  const iv = setInterval(() => {
+    count--;
+    if (count > 0) {
+      numEl.textContent = count;
+    } else {
+      clearInterval(iv);
+      onDone();
+    }
+  }, 1000);
+}
+
+// ---------------------------------------------------------------------
 // 이벤트 바인딩
 // ---------------------------------------------------------------------
-document.getElementById("btnStart").addEventListener("click", async () => {
+// 미션 카드 → 사전 안내화면으로 이동
+[1, 2, 3].forEach((n) => {
+  document.getElementById("card-" + n).addEventListener("click", () => {
+    const key = "mission" + n;
+    if (!state.data) return;
+    if (state.data[key] && state.data[key].completed) {
+      toast("이미 완료한 미션입니다");
+      return;
+    }
+    showScreen("screen-pre" + n);
+  });
+});
+
+// 시작하기 버튼 → 카운트다운 → 게임
+function launchMission(n) {
+  const key = "mission" + n;
+  const onComplete = (result) => handleMissionComplete(key, result);
+  if (n === 1 || n === 2) {
+    runCountdown(() => {
+      showScreen("screen-m" + n);
+      if (n === 1) startMission1(onComplete);
+      if (n === 2) startMission2(onComplete);
+    });
+  } else {
+    showScreen("screen-m" + n);
+    startMission3(onComplete);
+  }
+}
+
+document.getElementById("btnStartM1").addEventListener("click", () => launchMission(1));
+document.getElementById("btnStartM2").addEventListener("click", () => launchMission(2));
+document.getElementById("btnStartM3").addEventListener("click", () => launchMission(3));
   const input = document.getElementById("nicknameInput");
   const nickname = input.value.trim();
   if (!nickname) {
@@ -251,21 +301,6 @@ document.getElementById("btnStart").addEventListener("click", async () => {
   }
 });
 
-[1, 2, 3].forEach((n) => {
-  document.getElementById("card-" + n).addEventListener("click", () => {
-    const key = "mission" + n;
-    if (!state.data) return;
-    if (state.data[key] && state.data[key].completed) {
-      toast("이미 완료한 미션입니다");
-      return;
-    }
-    showScreen("screen-m" + n);
-    const onComplete = (result) => handleMissionComplete(key, result);
-    if (n === 1) startMission1(onComplete);
-    if (n === 2) startMission2(onComplete);
-    if (n === 3) startMission3(onComplete);
-  });
-});
 
 document.getElementById("btnBackToMenu").addEventListener("click", () => {
   renderMenu();

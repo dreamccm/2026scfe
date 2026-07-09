@@ -56,7 +56,63 @@
     <button class="btn btn-ghost go-home">처음으로</button>
   </section>
 
-  <!-- 2. 미션1: 위험물 찾기 -->
+  <!-- 2. 미션1 사전 안내 -->
+  <section class="screen" id="screen-pre1">
+    <div class="pre-icon">🛡️</div>
+    <div class="pre-mission-no">MISSION 01</div>
+    <h2 class="pre-title">위험물을 찾아라!</h2>
+    <div class="pre-desc-box">
+      <p>기내 반입 금지물품(위험물)만 빠르게 탭하세요.</p>
+      <p>안전한 물품을 누르면 <strong>감점</strong>됩니다.</p>
+    </div>
+    <div class="pre-meta">
+      <div class="pre-meta-item">⏱ 제한시간 <strong>20초</strong></div>
+    </div>
+    <div class="pre-btn-area">
+      <button class="btn btn-primary" id="btnStartM1">시작하기</button>
+    </div>
+  </section>
+
+  <!-- 3. 미션2 사전 안내 -->
+  <section class="screen" id="screen-pre2">
+    <div class="pre-icon">🧨</div>
+    <div class="pre-mission-no">MISSION 02</div>
+    <h2 class="pre-title">해체 순서를 기억하라!</h2>
+    <div class="pre-desc-box">
+      <p>화면에 표시되는 배선 순서를 기억한 뒤,</p>
+      <p>같은 순서로 정확히 눌러 해체하세요.</p>
+    </div>
+    <div class="pre-btn-area">
+      <button class="btn btn-primary" id="btnStartM2">시작하기</button>
+    </div>
+  </section>
+
+  <!-- 4. 미션3 사전 안내 -->
+  <section class="screen" id="screen-pre3">
+    <div class="pre-icon">🧩</div>
+    <div class="pre-mission-no">MISSION 03</div>
+    <h2 class="pre-title">직업을 짝지어라!</h2>
+    <div class="pre-desc-box">
+      <p>직업 아이콘과 그 직업의 설명을 짝지어 모두 연결하세요.</p>
+      <p>같은 짝을 찾아 <strong>두 번 탭</strong>하면 매칭됩니다.</p>
+    </div>
+    <div class="pre-meta">
+      <div class="pre-meta-item">⏱ 제한시간 <strong>60초</strong></div>
+    </div>
+    <div class="pre-btn-area">
+      <button class="btn btn-primary" id="btnStartM3">시작하기</button>
+    </div>
+  </section>
+
+  <!-- 5. 카운트다운 (미션 1·2 공용) -->
+  <section class="screen" id="screen-countdown">
+    <div class="countdown-wrap">
+      <div class="countdown-num" id="countdownNum">3</div>
+      <div class="countdown-label">준비하세요!</div>
+    </div>
+  </section>
+
+  <!-- 6. 미션1: 위험물 찾기 -->
   <section class="screen" id="screen-m1">
     <div class="game-header"><div class="game-name">🛡️ 위험물 찾아라!</div><div id="m1-timeLabel" class="pill">20s</div></div>
     <div class="timer-wrap"><div class="timer-bar" id="m1-timerBar"></div></div>

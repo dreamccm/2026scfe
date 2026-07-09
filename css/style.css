@@ -391,3 +391,92 @@ input[type="text"]:focus { outline: 2px solid var(--amber); border-color: var(--
 @media (prefers-reduced-motion: reduce) {
   .radar::after { animation: none; }
 }
+
+/* ─────────────────────────────────────────────
+   사전 안내 화면 (pre-mission briefing)
+───────────────────────────────────────────── */
+.pre-icon {
+  font-size: 72px;
+  text-align: center;
+  margin-top: 24px;
+}
+.pre-mission-no {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--amber);
+  text-align: center;
+  margin-top: 10px;
+}
+.pre-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--text);
+  text-align: center;
+  margin: 8px 0 0;
+}
+.pre-desc-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pre-desc-box p {
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.6;
+  margin: 0;
+}
+.pre-desc-box strong { color: var(--red); }
+.pre-meta {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+.pre-meta-item {
+  background: rgba(255,180,0,0.12);
+  border: 1px solid rgba(255,180,0,0.3);
+  border-radius: 999px;
+  padding: 8px 20px;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+.pre-meta-item strong { color: var(--amber); }
+.pre-btn-area {
+  position: absolute;
+  bottom: 32px;
+  left: 20px;
+  right: 20px;
+}
+
+/* ─────────────────────────────────────────────
+   카운트다운 화면
+───────────────────────────────────────────── */
+.countdown-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+.countdown-num {
+  font-family: var(--font-display);
+  font-size: 120px;
+  color: var(--amber);
+  line-height: 1;
+  animation: pulse 1s ease-in-out infinite;
+}
+.countdown-label {
+  font-size: 20px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
