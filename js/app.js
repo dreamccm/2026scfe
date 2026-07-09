@@ -267,6 +267,8 @@ function launchMission(n) {
 document.getElementById("btnStartM1").addEventListener("click", () => launchMission(1));
 document.getElementById("btnStartM2").addEventListener("click", () => launchMission(2));
 document.getElementById("btnStartM3").addEventListener("click", () => launchMission(3));
+
+document.getElementById("btnStart").addEventListener("click", async () => {
   const input = document.getElementById("nicknameInput");
   const nickname = input.value.trim();
   if (!nickname) {
