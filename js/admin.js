@@ -73,7 +73,11 @@ function startListener() {
 function renderAll() {
   const filter = document.getElementById("searchInput").value.trim().toLowerCase();
   const rows = filter
-    ? allRows.filter((r) => (r.nickname || "").toLowerCase().includes(filter))
+    ? allRows.filter(
+        (r) =>
+          (r.nickname || "").toLowerCase().includes(filter) ||
+          (r.certCode || "").toLowerCase().includes(filter)
+      )
     : allRows;
   const sorted = [...rows].sort(
     (a, b) => (b.totalScore || 0) - (a.totalScore || 0) || (a.totalTimeMs || 0) - (b.totalTimeMs || 0)
@@ -109,7 +113,7 @@ function renderTable(rows) {
   const body = document.getElementById("participantsBody");
   if (rows.length === 0) {
     body.innerHTML =
-      '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">데이터가 없습니다</td></tr>';
+      '<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">데이터가 없습니다</td></tr>';
     updateDeleteBtn();
     return;
   }
@@ -120,6 +124,7 @@ function renderTable(rows) {
       return `<tr data-id="${r.id}">
         <td><input type="checkbox" class="row-check" data-id="${r.id}" /></td>
         <td>${escapeHtml(r.nickname || "-")}</td>
+        <td>${escapeHtml(r.certCode || "-")}</td>
         <td>${missionCell(r.mission1)}</td>
         <td>${missionCell(r.mission2)}</td>
         <td>${missionCell(r.mission3)}</td>
@@ -206,7 +211,7 @@ document.getElementById("btnDeleteSelected").addEventListener("click", async () 
 // ---------------------------------------------------------------------
 document.getElementById("btnExportCsv").addEventListener("click", () => {
   const header = [
-    "닉네임", "M1점수", "M1시간ms", "M2점수", "M2시간ms",
+    "닉네임", "인증코드", "M1점수", "M1시간ms", "M2점수", "M2시간ms",
     "M3점수", "M3시간ms", "총점", "총시간ms", "완료시각", "기념품지급",
   ];
   const lines = [header.join(",")];
@@ -214,6 +219,7 @@ document.getElementById("btnExportCsv").addEventListener("click", () => {
     const completedAt = r.completedAt && r.completedAt.toDate ? r.completedAt.toDate().toISOString() : "";
     const row = [
       r.nickname || "",
+      r.certCode || "",
       r.mission1 ? r.mission1.score : "",
       r.mission1 ? r.mission1.timeMs : "",
       r.mission2 ? r.mission2.score : "",
