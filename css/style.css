@@ -432,6 +432,7 @@ input[type="text"]:focus { outline: 2px solid var(--amber); border-color: var(--
   color: var(--text);
   line-height: 1.6;
   margin: 0;
+  text-align: center;
 }
 .pre-desc-box strong { color: var(--red); }
 .pre-meta {
