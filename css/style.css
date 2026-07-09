@@ -447,10 +447,7 @@ input[type="text"]:focus { outline: 2px solid var(--amber); border-color: var(--
 }
 .pre-meta-item strong { color: var(--amber); }
 .pre-btn-area {
-  position: absolute;
-  bottom: 32px;
-  left: 20px;
-  right: 20px;
+  margin-top: 24px;
 }
 
 /* ─────────────────────────────────────────────
