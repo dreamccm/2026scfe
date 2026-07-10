@@ -39,15 +39,19 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
+// 아이디 형태(@ 없음) 입력 시 가상 도메인을 붙여 Firebase 이메일 계정으로 매핑
+const ADMIN_ID_DOMAIN = "@kac.astc";
+
 document.getElementById("btnLogin").addEventListener("click", async () => {
-  const email = document.getElementById("loginEmail").value.trim();
+  const idOrEmail = document.getElementById("loginEmail").value.trim();
+  const email = idOrEmail.includes("@") ? idOrEmail : idOrEmail + ADMIN_ID_DOMAIN;
   const pw = document.getElementById("loginPw").value;
   const errEl = document.getElementById("loginError");
   errEl.textContent = "";
   try {
     await signInWithEmailAndPassword(auth, email, pw);
   } catch (e) {
-    errEl.textContent = "로그인 실패: 이메일/비밀번호를 확인하세요.";
+    errEl.textContent = "로그인 실패: 아이디(이메일)/비밀번호를 확인하세요.";
   }
 });
 
