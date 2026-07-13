@@ -1,4 +1,4 @@
-import { firebaseConfig } from "./firebase-config.js";
+import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -18,6 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
+setupAppCheck(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 

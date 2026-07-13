@@ -1,4 +1,4 @@
-import { firebaseConfig } from "./firebase-config.js";
+import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
 import { startMission1, startMission2, startMission3 } from "./missions.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -19,6 +19,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const app = initializeApp(firebaseConfig);
+setupAppCheck(app);
 const db = getFirestore(app);
 
 // ---------------------------------------------------------------------
