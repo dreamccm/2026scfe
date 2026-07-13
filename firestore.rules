@@ -9,6 +9,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 지정된 관리자 계정만 관리자 권한을 가짐
+    // (가입 차단과 별개의 이중 방어 — 다른 경로로 인증된 계정이 생겨도 권한 없음)
+    function isAdmin() {
+      return request.auth != null
+             && request.auth.token.email in ['admin@kac.astc', 'isaac@airport.co.kr'];
+    }
+
     match /participants/{docId} {
 
       // 리더보드/관리자 화면 모두 닉네임·점수만 노출되므로 공개 읽기 허용
@@ -23,11 +30,11 @@ service cloud.firestore {
       // 수정: 관리자(로그인 상태)는 전체 허용.
       // 비로그인 참가자는 자신의 미션 진행 데이터는 갱신 가능하나
       // rewardGiven(기념품 지급 여부) 필드는 변경할 수 없음.
-      allow update: if request.auth != null
+      allow update: if isAdmin()
                     || !("rewardGiven" in request.resource.data.diff(resource.data).affectedKeys());
 
       // 삭제(데이터 초기화)는 관리자만 가능
-      allow delete: if request.auth != null;
+      allow delete: if isAdmin();
     }
   }
 }
