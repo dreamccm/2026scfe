@@ -214,6 +214,15 @@ document.getElementById("btnDeleteSelected").addEventListener("click", async () 
 // ---------------------------------------------------------------------
 // CSV 다운로드
 // ---------------------------------------------------------------------
+// CSV 셀 인코딩 + 수식 인젝션 방어:
+// =, +, -, @, 탭, 캐리지리턴으로 시작하는 값은 엑셀에서 수식으로 해석될 수 있으므로
+// 작은따옴표를 앞에 붙여 무력화한 뒤 따옴표로 감싼다.
+function csvCell(v) {
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
 document.getElementById("btnExportCsv").addEventListener("click", () => {
   const header = [
     "닉네임", "인증코드", "M1점수", "M1시간ms", "M2점수", "M2시간ms",
@@ -236,7 +245,7 @@ document.getElementById("btnExportCsv").addEventListener("click", () => {
       completedAt,
       r.rewardGiven ? "Y" : "N",
     ];
-    lines.push(row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+    lines.push(row.map(csvCell).join(","));
   });
   const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
