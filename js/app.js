@@ -166,6 +166,7 @@ function showComplete() {
   document.getElementById("totalTimeDisplay").textContent =
     (state.data.totalTimeMs / 1000).toFixed(1) + "s";
   showScreen("screen-complete");
+  prepareCertImage(); // 인증서 이미지를 미리 생성(버튼은 준비 완료 시 활성화)
 }
 
 // ---------------------------------------------------------------------
@@ -325,87 +326,90 @@ document.getElementById("btnGoLeaderboardFromComplete").addEventListener("click"
 
 // ---------------------------------------------------------------------
 // 인증서 이미지 저장 / 공유 (html2canvas + Web Share)
+//   iOS는 웹에서 사진 앱에 직접 저장이 불가능해, 갤러리 저장의 유일한 경로인
+//   OS 공유시트를 사용한다(공유시트 > '사진에 저장'). 데스크톱은 다운로드로 폴백.
+//   또한 iOS는 탭 직후에만 공유를 허용하므로(transient activation), 인증서 화면이
+//   뜰 때 이미지를 미리 만들어 두고 버튼 탭 시 곧바로 공유한다.
 // ---------------------------------------------------------------------
+const btnCertImage = document.getElementById("btnCertImage");
+const canShareFiles = () => !!(navigator.canShare && navigator.share);
+let certFile = null; // 미리 생성해 둔 인증서 PNG File
+
 function certFilename() {
   const code = state.data && state.data.certCode ? state.data.certCode : "cert";
   return `avsec-hero-${code}.png`;
 }
 
-// 인증서 영역을 캡처해 PNG Blob으로 반환
-async function buildCertBlob() {
+// 인증서 영역을 캡처해 PNG File로 반환
+async function renderCertFile() {
   const target = document.getElementById("certCapture");
+  if (document.fonts && document.fonts.ready) {
+    try { await document.fonts.ready; } catch (_) { /* 폰트 대기 실패 무시 */ }
+  }
   const canvas = await window.html2canvas(target, {
     backgroundColor: "#0b1220",
     scale: Math.min(3, (window.devicePixelRatio || 1) * 2),
     useCORS: true,
   });
-  return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  return new File([blob], certFilename(), { type: "image/png" });
 }
 
-// 버튼 실행 중 상태 표시 헬퍼
-async function withBtnBusy(btn, busyText, fn) {
-  const prev = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = busyText;
+// 인증서 화면 표시 시 호출: 이미지를 미리 만들고 준비될 때까지 버튼 비활성화
+async function prepareCertImage() {
+  if (!btnCertImage) return;
+  certFile = null;
+  const label = "인증서 이미지 저장/공유";
+  btnCertImage.disabled = true;
+  btnCertImage.textContent = "이미지 준비 중...";
+  document.getElementById("certHelp").style.display = canShareFiles() ? "block" : "none";
   try {
-    await fn();
+    certFile = await renderCertFile();
+  } catch (e) {
+    console.error("인증서 이미지 생성 실패", e);
   } finally {
-    btn.disabled = false;
-    btn.textContent = prev;
+    btnCertImage.textContent = label;
+    btnCertImage.disabled = false;
   }
 }
 
-const btnSaveCert = document.getElementById("btnSaveCert");
-if (btnSaveCert) {
-  btnSaveCert.addEventListener("click", () =>
-    withBtnBusy(btnSaveCert, "이미지 생성 중...", async () => {
+if (btnCertImage) {
+  btnCertImage.addEventListener("click", async () => {
+    // 준비된 파일 우선 사용(iOS 권한 유지). 없으면 즉석 생성(폴백).
+    let file = certFile;
+    if (!file) {
+      try { file = await renderCertFile(); } catch (e) { console.error(e); }
+    }
+    if (!file) {
+      toast("이미지 생성에 실패했어요. 화면을 직접 캡처해 주세요.");
+      return;
+    }
+    // 모바일: 공유시트 → '사진에 저장'
+    if (canShareFiles() && navigator.canShare({ files: [file] })) {
       try {
-        const blob = await buildCertBlob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = certFilename();
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        await navigator.share({
+          files: [file],
+          title: "항공보안 히어로 인증서",
+          text: "항공보안 히어로 미션을 완료했어요! 🛡️",
+        });
       } catch (e) {
-        console.error(e);
-        toast("이미지 저장에 실패했어요. 화면을 직접 캡처해 주세요.");
-      }
-    })
-  );
-}
-
-const btnShareCert = document.getElementById("btnShareCert");
-if (btnShareCert) {
-  // 파일 공유(Web Share Level 2)를 지원하지 않는 환경에서는 버튼 숨김
-  if (!(navigator.share && navigator.canShare)) {
-    btnShareCert.style.display = "none";
-  } else {
-    btnShareCert.addEventListener("click", () =>
-      withBtnBusy(btnShareCert, "준비 중...", async () => {
-        try {
-          const blob = await buildCertBlob();
-          const file = new File([blob], certFilename(), { type: "image/png" });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({
-              files: [file],
-              title: "항공보안 히어로 인증서",
-              text: "항공보안 히어로 미션을 완료했어요! 🛡️",
-            });
-          } else {
-            toast("이 기기에서는 이미지 공유를 지원하지 않아요. '인증서 이미지 저장'을 이용해 주세요.");
-          }
-        } catch (e) {
-          if (!e || e.name !== "AbortError") {
-            console.error(e);
-            toast("공유에 실패했어요.");
-          }
+        if (!e || e.name !== "AbortError") {
+          console.error(e);
+          toast("저장/공유에 실패했어요. 다시 시도하거나 화면을 캡처해 주세요.");
         }
-      })
-    );
-  }
+      }
+      return;
+    }
+    // 데스크톱 등 공유 미지원 → 다운로드
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = certFilename();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
 }
 document.getElementById("btnBackFromLeaderboard").addEventListener("click", () => {
   showScreen(state.data ? "screen-menu" : "screen-start");
@@ -420,6 +424,7 @@ function resetToStart() {
   state.ref = null;
   state.sessionId = null;
   state.data = null;
+  certFile = null;
   const input = document.getElementById("nicknameInput");
   if (input) input.value = "";
   showScreen("screen-start");
