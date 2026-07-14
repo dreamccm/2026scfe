@@ -27,7 +27,7 @@ service cloud.firestore {
                     && request.resource.data.nickname.size() <= 20
                     && request.resource.data.rewardGiven == false;
 
-      // 수정: 관리자(로그인 상태)는 전체 허용.
+      // 수정: 지정된 관리자 계정(isAdmin)은 전체 허용.
       // 비로그인 참가자는 자신의 미션 진행 데이터는 갱신 가능하나
       // rewardGiven(기념품 지급 여부) 필드는 변경할 수 없음.
       allow update: if isAdmin()
