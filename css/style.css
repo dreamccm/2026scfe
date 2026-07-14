@@ -333,6 +333,8 @@ input[type="text"]:focus { outline: 2px solid var(--amber); border-color: var(--
 }
 
 /* ---------- 결과/인증서 ---------- */
+/* 인증서 캡처 대상: 저장·공유 이미지에 배경 여백을 확보 */
+.cert-capture { background: var(--bg); padding: 12px 8px; border-radius: var(--radius); }
 .cert {
   background: linear-gradient(160deg, var(--surface) 0%, var(--surface-2) 100%);
   border: 1px solid var(--amber);

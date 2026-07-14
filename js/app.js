@@ -322,6 +322,91 @@ document.getElementById("btnGoLeaderboardFromComplete").addEventListener("click"
   startLeaderboardListener();
   showScreen("screen-leaderboard");
 });
+
+// ---------------------------------------------------------------------
+// 인증서 이미지 저장 / 공유 (html2canvas + Web Share)
+// ---------------------------------------------------------------------
+function certFilename() {
+  const code = state.data && state.data.certCode ? state.data.certCode : "cert";
+  return `avsec-hero-${code}.png`;
+}
+
+// 인증서 영역을 캡처해 PNG Blob으로 반환
+async function buildCertBlob() {
+  const target = document.getElementById("certCapture");
+  const canvas = await window.html2canvas(target, {
+    backgroundColor: "#0b1220",
+    scale: Math.min(3, (window.devicePixelRatio || 1) * 2),
+    useCORS: true,
+  });
+  return await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+}
+
+// 버튼 실행 중 상태 표시 헬퍼
+async function withBtnBusy(btn, busyText, fn) {
+  const prev = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = busyText;
+  try {
+    await fn();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+}
+
+const btnSaveCert = document.getElementById("btnSaveCert");
+if (btnSaveCert) {
+  btnSaveCert.addEventListener("click", () =>
+    withBtnBusy(btnSaveCert, "이미지 생성 중...", async () => {
+      try {
+        const blob = await buildCertBlob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = certFilename();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (e) {
+        console.error(e);
+        toast("이미지 저장에 실패했어요. 화면을 직접 캡처해 주세요.");
+      }
+    })
+  );
+}
+
+const btnShareCert = document.getElementById("btnShareCert");
+if (btnShareCert) {
+  // 파일 공유(Web Share Level 2)를 지원하지 않는 환경에서는 버튼 숨김
+  if (!(navigator.share && navigator.canShare)) {
+    btnShareCert.style.display = "none";
+  } else {
+    btnShareCert.addEventListener("click", () =>
+      withBtnBusy(btnShareCert, "준비 중...", async () => {
+        try {
+          const blob = await buildCertBlob();
+          const file = new File([blob], certFilename(), { type: "image/png" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: "항공보안 히어로 인증서",
+              text: "항공보안 히어로 미션을 완료했어요! 🛡️",
+            });
+          } else {
+            toast("이 기기에서는 이미지 공유를 지원하지 않아요. '인증서 이미지 저장'을 이용해 주세요.");
+          }
+        } catch (e) {
+          if (!e || e.name !== "AbortError") {
+            console.error(e);
+            toast("공유에 실패했어요.");
+          }
+        }
+      })
+    );
+  }
+}
 document.getElementById("btnBackFromLeaderboard").addEventListener("click", () => {
   showScreen(state.data ? "screen-menu" : "screen-start");
 });

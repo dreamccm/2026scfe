@@ -155,17 +155,21 @@
 
   <!-- 6. 전체 완료 / 인증서 -->
   <section class="screen" id="screen-complete">
-    <div class="cert">
-      <div class="badge">🏅</div>
-      <div class="cert-title">항공보안 전문가 인증서</div>
-      <div class="cert-name" id="certNickname">-</div>
-      <div class="cert-code" id="certCode">CODE: -</div>
-    </div>
-    <div class="score-summary">
-      <div class="item"><div class="num" id="totalScoreDisplay">0</div><div class="lbl">TOTAL SCORE</div></div>
-      <div class="item"><div class="num" id="totalTimeDisplay">0.0s</div><div class="lbl">TOTAL TIME</div></div>
+    <div class="cert-capture" id="certCapture">
+      <div class="cert">
+        <div class="badge">🏅</div>
+        <div class="cert-title">항공보안 전문가 인증서</div>
+        <div class="cert-name" id="certNickname">-</div>
+        <div class="cert-code" id="certCode">CODE: -</div>
+      </div>
+      <div class="score-summary">
+        <div class="item"><div class="num" id="totalScoreDisplay">0</div><div class="lbl">TOTAL SCORE</div></div>
+        <div class="item"><div class="num" id="totalTimeDisplay">0.0s</div><div class="lbl">TOTAL TIME</div></div>
+      </div>
     </div>
     <p class="subtitle">이 화면을 부스 운영진에게 보여주고<br/>기념품을 받아가세요!</p>
+    <button class="btn btn-primary" id="btnSaveCert">인증서 이미지 저장</button>
+    <button class="btn btn-secondary" id="btnShareCert">공유하기</button>
     <button class="btn btn-secondary" id="btnGoLeaderboardFromComplete">전체 순위 보기</button>
     <button class="btn btn-ghost go-home">처음으로</button>
   </section>
@@ -180,6 +184,7 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="js/html2canvas.min.js"></script>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
