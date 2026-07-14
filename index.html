@@ -7,6 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders:wght@600;700&family=Noto+Sans+KR:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css" />
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b1220">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AVSEC HERO">
 </head>
 <body>
 <div class="app">
@@ -186,5 +193,13 @@
 
 <script src="js/html2canvas.min.js"></script>
 <script type="module" src="js/app.js"></script>
+<script>
+  // 서비스 워커 등록 (PWA). app.js와 독립적으로 동작해 등록 실패가 앱에 영향 없음.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch((e) => console.warn("SW 등록 실패", e));
+    });
+  }
+</script>
 </body>
 </html>
