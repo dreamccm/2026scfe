@@ -14,6 +14,7 @@
 | 관리자 인증 | Firebase Authentication (이메일/비밀번호) |
 | 수집 정보 | 닉네임만 (개인정보 미수집) |
 | 예상 규모 | 일 평균 150~300명 (작년 4일 852명 기준) — Firebase 무료(Spark) 티어로 충분 |
+| 서드파티 라이브러리 | `js/html2canvas.min.js` — [html2canvas](https://github.com/niklasvh/html2canvas) v1.4.1 (npm 레지스트리에서 받아 저장소에 포함, 인증서 이미지 캡처용). 외부 CDN 미사용. 업데이트 시 검토 후 교체할 것 |
 
 ---
 
