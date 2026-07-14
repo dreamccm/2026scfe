@@ -355,30 +355,25 @@ async function renderCertFile() {
   return new File([blob], certFilename(), { type: "image/png" });
 }
 
-// 인증서 화면 표시 시 호출: 이미지를 미리 만들고 준비될 때까지 버튼 비활성화
+// 인증서 화면 표시 시 호출: 버튼은 곧바로 누를 수 있게 두고, 뒤에서 이미지를 미리 생성.
+// (준비 완료 시 대부분의 탭은 즉시 공유 시트로 이어짐)
 async function prepareCertImage() {
   if (!btnCertImage) return;
   certFile = null;
-  const label = "인증서 이미지 저장/공유";
-  btnCertImage.disabled = true;
-  btnCertImage.textContent = "이미지 준비 중...";
   document.getElementById("certHelp").style.display = canShareFiles() ? "block" : "none";
   try {
     certFile = await renderCertFile();
   } catch (e) {
     console.error("인증서 이미지 생성 실패", e);
-  } finally {
-    btnCertImage.textContent = label;
-    btnCertImage.disabled = false;
   }
 }
 
 if (btnCertImage) {
   btnCertImage.addEventListener("click", async () => {
-    // 준비된 파일 우선 사용(iOS 권한 유지). 없으면 즉석 생성(폴백).
+    // 준비된 파일 우선 사용(iOS 권한 유지). 아직이면 즉석 생성 후 캐시(폴백).
     let file = certFile;
     if (!file) {
-      try { file = await renderCertFile(); } catch (e) { console.error(e); }
+      try { file = certFile = await renderCertFile(); } catch (e) { console.error(e); }
     }
     if (!file) {
       toast("이미지 생성에 실패했어요. 화면을 직접 캡처해 주세요.");
@@ -393,7 +388,10 @@ if (btnCertImage) {
           text: "항공보안 히어로 미션을 완료했어요! 🛡️",
         });
       } catch (e) {
-        if (!e || e.name !== "AbortError") {
+        if (e && e.name === "NotAllowedError") {
+          // 준비 전 급히 탭해 iOS 권한이 만료된 경우 — 이미지는 이제 준비됨
+          toast("한 번 더 눌러 저장·공유하세요.");
+        } else if (!e || e.name !== "AbortError") {
           console.error(e);
           toast("저장/공유에 실패했어요. 다시 시도하거나 화면을 캡처해 주세요.");
         }
