@@ -111,6 +111,7 @@ function renderMenu() {
       light.classList.remove("on");
     }
   });
+  refreshCertButtons();
 }
 
 function allMissionsDone() {
@@ -311,18 +312,14 @@ document.getElementById("btnBackToMenu").addEventListener("click", () => {
   showScreen("screen-menu");
 });
 
-document.getElementById("btnGoLeaderboard").addEventListener("click", () => {
+function goLeaderboard() {
   startLeaderboardListener();
+  refreshCertButtons(); // 완료 상태면 순위표에도 저장/공유 버튼 노출
   showScreen("screen-leaderboard");
-});
-document.getElementById("btnGoLeaderboardFromStart").addEventListener("click", () => {
-  startLeaderboardListener();
-  showScreen("screen-leaderboard");
-});
-document.getElementById("btnGoLeaderboardFromComplete").addEventListener("click", () => {
-  startLeaderboardListener();
-  showScreen("screen-leaderboard");
-});
+}
+document.getElementById("btnGoLeaderboard").addEventListener("click", goLeaderboard);
+document.getElementById("btnGoLeaderboardFromStart").addEventListener("click", goLeaderboard);
+document.getElementById("btnGoLeaderboardFromComplete").addEventListener("click", goLeaderboard);
 
 // ---------------------------------------------------------------------
 // 인증서 이미지 저장 / 공유 (html2canvas + Web Share)
@@ -334,6 +331,10 @@ document.getElementById("btnGoLeaderboardFromComplete").addEventListener("click"
 const btnCertImage = document.getElementById("btnCertImage");
 const canShareFiles = () => !!(navigator.canShare && navigator.share);
 let certFile = null; // 미리 생성해 둔 인증서 PNG File
+let certRenderPromise = null; // 생성 진행 중 프로미스(빠른 탭 대비)
+
+// 순위표·미션 목록 화면에 노출되는 저장/공유 버튼(완료 상태에서만 표시)
+const certToggleBtns = ["btnCertImageMenu", "btnCertImageLb"].map((id) => document.getElementById(id));
 
 function certFilename() {
   const code = state.data && state.data.certCode ? state.data.certCode : "cert";
@@ -356,61 +357,79 @@ async function renderCertFile() {
 }
 
 // 인증서 화면 표시 시 호출: 버튼은 곧바로 누를 수 있게 두고, 뒤에서 이미지를 미리 생성.
-// (준비 완료 시 대부분의 탭은 즉시 공유 시트로 이어짐)
-async function prepareCertImage() {
+// (한 번 생성해 두면 순위표·목록 화면에서도 캐시를 재사용하므로 재캡처 불필요)
+function prepareCertImage() {
   if (!btnCertImage) return;
   certFile = null;
   document.getElementById("certHelp").style.display = canShareFiles() ? "block" : "none";
-  try {
-    certFile = await renderCertFile();
-  } catch (e) {
-    console.error("인증서 이미지 생성 실패", e);
-  }
+  certRenderPromise = renderCertFile()
+    .then((f) => { certFile = f; return f; })
+    .catch((e) => { console.error("인증서 이미지 생성 실패", e); return null; });
 }
 
-if (btnCertImage) {
-  btnCertImage.addEventListener("click", async () => {
-    // 준비된 파일 우선 사용(iOS 권한 유지). 아직이면 즉석 생성 후 캐시(폴백).
-    let file = certFile;
-    if (!file) {
-      try { file = certFile = await renderCertFile(); } catch (e) { console.error(e); }
-    }
-    if (!file) {
-      toast("이미지 생성에 실패했어요. 화면을 직접 캡처해 주세요.");
-      return;
-    }
-    // 모바일: 공유시트 → '사진에 저장'
-    if (canShareFiles() && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: "항공보안 히어로 인증서",
-          text: "항공보안 히어로 미션을 완료했어요! 🛡️",
-        });
-      } catch (e) {
-        if (e && e.name === "NotAllowedError") {
-          // 준비 전 급히 탭해 iOS 권한이 만료된 경우 — 이미지는 이제 준비됨
-          toast("한 번 더 눌러 저장·공유하세요.");
-        } else if (!e || e.name !== "AbortError") {
-          console.error(e);
-          toast("저장/공유에 실패했어요. 다시 시도하거나 화면을 캡처해 주세요.");
-        }
-      }
-      return;
-    }
-    // 데스크톱 등 공유 미지원 → 다운로드
-    const url = URL.createObjectURL(file);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = certFilename();
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
+// 준비된 인증서 File 확보. 캐시 우선 → 진행 중이면 대기 → 완료 화면일 때만 즉석 캡처.
+async function getCertFile() {
+  if (certFile) return certFile;
+  if (certRenderPromise) { await certRenderPromise; if (certFile) return certFile; }
+  if (document.getElementById("screen-complete").classList.contains("active")) {
+    try { certFile = await renderCertFile(); } catch (e) { console.error(e); }
+  }
+  return certFile;
 }
+
+// 완료 상태일 때만 순위표·목록의 저장/공유 버튼을 노출
+function refreshCertButtons() {
+  const show = !!state.data && allMissionsDone();
+  certToggleBtns.forEach((b) => { if (b) b.style.display = show ? "" : "none"; });
+}
+
+// 저장/공유 실행(완료 화면·순위표·목록 공용)
+async function shareCertImage() {
+  const file = await getCertFile();
+  if (!file) {
+    toast("인증서 이미지를 준비 중이에요. 잠시 후 다시 눌러 주세요.");
+    return;
+  }
+  // 모바일: 공유시트 → '사진에 저장'
+  if (canShareFiles() && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({
+        files: [file],
+        title: "항공보안 히어로 인증서",
+        text: "항공보안 히어로 미션을 완료했어요! 🛡️",
+      });
+    } catch (e) {
+      if (e && e.name === "NotAllowedError") {
+        // 준비 전 급히 탭해 iOS 권한이 만료된 경우 — 이미지는 이제 준비됨
+        toast("한 번 더 눌러 저장·공유하세요.");
+      } else if (!e || e.name !== "AbortError") {
+        console.error(e);
+        toast("저장/공유에 실패했어요. 다시 시도하거나 화면을 캡처해 주세요.");
+      }
+    }
+    return;
+  }
+  // 데스크톱 등 공유 미지원 → 다운로드
+  const url = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = certFilename();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+[btnCertImage, ...certToggleBtns].forEach((b) => {
+  if (b) b.addEventListener("click", shareCertImage);
+});
 document.getElementById("btnBackFromLeaderboard").addEventListener("click", () => {
-  showScreen(state.data ? "screen-menu" : "screen-start");
+  if (state.data) {
+    renderMenu();
+    showScreen("screen-menu");
+  } else {
+    showScreen("screen-start");
+  }
 });
 
 // ---------------------------------------------------------------------
