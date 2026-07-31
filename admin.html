@@ -43,6 +43,36 @@
   </div>
 
   <div class="section-title">
+    <span>행사(세션) 관리</span>
+  </div>
+  <div class="toolbar">
+    <label class="field-label" for="eventFilter" style="margin:0">보기 대상</label>
+    <select id="eventFilter"></select>
+    <span id="eventFilterMeta" style="font-size:12px;color:var(--text-muted)"></span>
+  </div>
+  <div class="table-wrap">
+    <table class="participants events-table">
+      <thead>
+        <tr>
+          <th>행사명</th>
+          <th>시작</th>
+          <th>종료</th>
+          <th>진행중 노출</th>
+          <th>참가자</th>
+          <th>관리</th>
+        </tr>
+      </thead>
+      <tbody id="eventsBody"></tbody>
+    </table>
+  </div>
+  <div class="toolbar" style="margin-top:12px">
+    <input type="text" id="newEventName" placeholder="새 행사명 (예: 2026 항공보안의 날)" />
+    <input type="datetime-local" id="newEventStart" title="시작 일시(선택)" />
+    <input type="datetime-local" id="newEventEnd" title="종료 일시(선택)" />
+    <button class="btn btn-secondary" id="btnAddEvent" style="width:auto">행사 추가</button>
+  </div>
+
+  <div class="section-title">
     <span>QR / 접속 링크</span>
   </div>
   <div class="qr-box">
@@ -51,6 +81,7 @@
       <label class="field-label" for="siteUrlInput">참가자용 페이지 URL (GitHub Pages 배포 주소)</label>
       <input type="text" id="siteUrlInput" placeholder="https://your-id.github.io/repo-name/" />
       <button class="btn btn-secondary" id="btnGenQr" style="width:auto;padding:10px 16px;font-size:13px;margin-top:6px">QR 생성</button>
+      <p id="qrTargetInfo" style="font-size:12px;color:var(--text-muted);margin:8px 0 0"></p>
     </div>
   </div>
 
@@ -85,8 +116,8 @@
 
   <div class="danger-zone">
     <h3>⚠ 데이터 초기화</h3>
-    <p>모든 참가자 기록을 영구 삭제합니다. 행사 시작 전 테스트 데이터 정리용으로만 사용하세요. 되돌릴 수 없습니다.</p>
-    <button class="btn" id="btnReset">전체 참가자 데이터 삭제</button>
+    <p>현재 <strong>보기 대상</strong>으로 선택한 행사의 참가자 기록을 영구 삭제합니다. ("전체"를 선택하면 모든 행사의 기록이 삭제됩니다.) 행사 시작 전 테스트 데이터 정리용으로만 사용하세요. 되돌릴 수 없습니다.</p>
+    <button class="btn" id="btnReset">선택한 행사의 참가자 데이터 삭제</button>
   </div>
 </div>
 

@@ -16,15 +16,24 @@ service cloud.firestore {
              && request.auth.token.email in ['admin@kac.astc', 'isaac@airport.co.kr'];
     }
 
+    // 행사(세션): 참가자 앱이 행사명·일정을 읽어야 하므로 공개 읽기, 쓰기는 관리자만
+    match /events/{eventId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /participants/{docId} {
 
       // 리더보드/관리자 화면 모두 닉네임·점수만 노출되므로 공개 읽기 허용
       allow read: if true;
 
-      // 참가자 최초 생성: 닉네임 형식만 검증, rewardGiven은 항상 false로 시작
+      // 참가자 최초 생성: 닉네임·행사 형식만 검증, rewardGiven은 항상 false로 시작
       allow create: if request.resource.data.nickname is string
                     && request.resource.data.nickname.size() > 0
                     && request.resource.data.nickname.size() <= 20
+                    && request.resource.data.eventId is string
+                    && request.resource.data.eventId.size() > 0
+                    && request.resource.data.eventId.size() <= 64
                     && request.resource.data.rewardGiven == false;
 
       // 수정: 지정된 관리자 계정(isAdmin)은 전체 허용.

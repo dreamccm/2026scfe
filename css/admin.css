@@ -150,3 +150,43 @@ table.participants .done-no { color: var(--text-muted); }
 .btn-danger:hover { opacity: 0.88; }
 table.participants th:first-child,
 table.participants td:first-child { text-align: center; width: 36px; padding: 0 4px; }
+
+/* ---------- 행사(세션) 관리 ---------- */
+.toolbar select,
+.toolbar input[type="datetime-local"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+.toolbar select { min-width: 200px; }
+.event-badge {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.event-badge.on { color: var(--green); border-color: var(--green); }
+table.participants td .btn {
+  width: auto;
+  margin: 0 4px 0 0;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+/* 행사 표는 첫 칸이 체크박스가 아니라 행사명이므로 참가자 표의 폭 규칙을 되돌린다 */
+table.events-table th:first-child,
+table.events-table td:first-child { text-align: left; width: auto; padding: 10px 12px; }
+table.events-table input[type="text"] { width: 100%; min-width: 180px; }
+table.events-table input[type="datetime-local"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+}

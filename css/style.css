@@ -146,6 +146,25 @@ p.subtitle {
   margin: 0 0 24px;
 }
 
+/* 행사(세션) 표시 */
+.event-name {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--amber);
+  margin: -14px 0 18px;
+}
+.event-notice {
+  text-align: center;
+  font-size: 13px;
+  color: var(--red);
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.35);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 0 0 18px;
+}
+
 label.field-label {
   font-size: 13px;
   color: var(--text-muted);
