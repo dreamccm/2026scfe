@@ -49,6 +49,46 @@ function genCode() {
   return "AV-" + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// ---------------------------------------------------------------------
+// 기기별 참여 횟수 제한 (행사당 최대 2회)
+//   localStorage 기반이라 시크릿 모드·캐시 삭제로 우회가 가능하다.
+//   로그인이 없는 구조에서의 한계이며, 완전 차단이 아닌 중복 참여 억제용.
+//
+//   부스에 비치한 공용 기기(여러 명이 순서대로 사용)는 이 제한에 걸리면 안 되므로
+//   ?kiosk=1 로 한 번 접속해 두면 해당 기기는 제한이 면제된다. (?kiosk=0 으로 해제)
+// ---------------------------------------------------------------------
+const MAX_PLAYS_PER_EVENT = 2;
+const KIOSK_KEY = "avsec_kiosk";
+
+function playCountKey(eventId) {
+  return `avsec_plays_${eventId}`;
+}
+
+function getPlayCount(eventId) {
+  return parseInt(localStorage.getItem(playCountKey(eventId)) || "0", 10) || 0;
+}
+
+function incPlayCount(eventId) {
+  localStorage.setItem(playCountKey(eventId), String(getPlayCount(eventId) + 1));
+}
+
+function isKioskDevice() {
+  return localStorage.getItem(KIOSK_KEY) === "1";
+}
+
+// 공용 기기 지정/해제 (?kiosk=1 / ?kiosk=0)
+function applyKioskParam() {
+  const v = new URLSearchParams(location.search).get("kiosk");
+  if (v === "1") localStorage.setItem(KIOSK_KEY, "1");
+  else if (v === "0") localStorage.removeItem(KIOSK_KEY);
+}
+
+// 이 기기가 현재 행사에 더 참여할 수 있는지
+function canPlayMore() {
+  if (isKioskDevice()) return true;
+  return getPlayCount(state.eventId) < MAX_PLAYS_PER_EVENT;
+}
+
 // 같은 닉네임을 쓰는 다른 참가자(문서)가 있는지 확인 (내 기존 세션은 제외).
 // 닉네임 중복은 같은 행사 안에서만 따진다 — 행사가 다르면 같은 닉네임을 허용.
 async function checkNicknameTaken(nickname, excludeId) {
@@ -74,6 +114,13 @@ async function getOrCreateSession(nickname) {
     }
   }
 
+  // 여기부터는 새 참가자 생성 — 기기별 참여 횟수 제한 확인
+  if (!canPlayMore()) {
+    const err = new Error("play limit reached");
+    err.code = "play-limit";
+    throw err;
+  }
+
   sessionId =
     window.crypto && window.crypto.randomUUID
       ? window.crypto.randomUUID()
@@ -95,6 +142,7 @@ async function getOrCreateSession(nickname) {
   };
   await setDoc(ref, data);
   localStorage.setItem(SESSION_KEY, sessionId);
+  incPlayCount(state.eventId); // 새 참가자 생성 = 1회 참여로 집계
   return { ref, sessionId, data };
 }
 
@@ -311,11 +359,15 @@ document.getElementById("btnStart").addEventListener("click", async () => {
     startLeaderboardListener();
     showScreen("screen-menu");
   } catch (e) {
-    console.error(e);
-    toast("연결에 실패했습니다. firebase-config.js 설정을 확인하세요.");
+    if (e && e.code === "play-limit") {
+      toast(`이 기기에서는 ${MAX_PLAYS_PER_EVENT}회까지만 참여할 수 있어요.`);
+    } else {
+      console.error(e);
+      toast("연결에 실패했습니다. firebase-config.js 설정을 확인하세요.");
+    }
   } finally {
-    btn.disabled = false;
     btn.textContent = "미션 시작하기";
+    refreshStartAvailability(); // 제한에 걸렸다면 버튼은 비활성 유지
   }
 });
 
@@ -457,6 +509,7 @@ function resetToStart() {
   certFile = null;
   const input = document.getElementById("nicknameInput");
   if (input) input.value = "";
+  refreshStartAvailability(); // 참여 횟수를 모두 쓴 기기라면 다시 시작하지 못하게
   showScreen("screen-start");
 }
 
@@ -529,34 +582,44 @@ async function resolveEvent() {
   state.event = null;
 }
 
-// 행사 이름/일정 표시 + 기간 밖이면 참가 차단
-function applyEventToUI() {
-  const nameEl = document.getElementById("eventName");
+// 시작 화면에서 참가 가능 여부 갱신 (행사 기간 + 기기별 참여 횟수)
+function refreshStartAvailability() {
   const noticeEl = document.getElementById("eventNotice");
   const startBtn = document.getElementById("btnStart");
-  if (state.event && nameEl) {
-    nameEl.textContent = `${state.event.name} · ${formatEventPeriod(state.event)}`;
-    nameEl.style.display = "block";
-  } else if (nameEl) {
-    nameEl.style.display = "none";
-  }
+  if (!noticeEl || !startBtn) return;
 
   const { open, reason } = getEventOpenState(state.event);
-  if (!noticeEl || !startBtn) return;
-  if (open) {
-    noticeEl.style.display = "none";
-    startBtn.disabled = false;
-    return;
+  let msg = "";
+  if (!open) {
+    msg =
+      reason === "before"
+        ? "아직 행사 시작 전입니다. 시작 시간에 다시 접속해 주세요."
+        : "종료된 행사입니다. 참여해 주셔서 감사합니다!";
+  } else if (!canPlayMore()) {
+    msg = `이 기기에서는 ${MAX_PLAYS_PER_EVENT}회까지 참여할 수 있습니다.\n다음 참가자에게 양보해 주세요!`;
   }
-  noticeEl.textContent =
-    reason === "before"
-      ? "아직 행사 시작 전입니다. 시작 시간에 다시 접속해 주세요."
-      : "종료된 행사입니다. 참여해 주셔서 감사합니다!";
-  noticeEl.style.display = "block";
-  startBtn.disabled = true;
+
+  noticeEl.textContent = msg;
+  noticeEl.style.display = msg ? "block" : "none";
+  startBtn.disabled = !!msg;
+}
+
+// 행사 이름/일정 표시 + 참가 가능 여부 반영
+function applyEventToUI() {
+  const nameEl = document.getElementById("eventName");
+  if (nameEl) {
+    if (state.event) {
+      nameEl.textContent = `${state.event.name} · ${formatEventPeriod(state.event)}`;
+      nameEl.style.display = "block";
+    } else {
+      nameEl.style.display = "none";
+    }
+  }
+  refreshStartAvailability();
 }
 
 (async function init() {
+  applyKioskParam(); // ?kiosk=1 로 접속한 공용 기기는 참여 횟수 제한 면제
   await resolveEvent();
   applyEventToUI();
   await tryAutoResume();

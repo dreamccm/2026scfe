@@ -156,6 +156,7 @@ p.subtitle {
 }
 .event-notice {
   text-align: center;
+  white-space: pre-line; /* 안내 문구의 줄바꿈(\n) 반영 */
   font-size: 13px;
   color: var(--red);
   background: rgba(255, 71, 87, 0.1);
