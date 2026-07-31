@@ -14,7 +14,7 @@
 | 관리자 인증 | Firebase Authentication (이메일/비밀번호) |
 | 수집 정보 | 닉네임만 (개인정보 미수집) |
 | 예상 규모 | 일 평균 150~300명 (작년 4일 852명 기준) — Firebase 무료(Spark) 티어로 충분 |
-| 서드파티 라이브러리 | `js/html2canvas.min.js` — [html2canvas](https://github.com/niklasvh/html2canvas) v1.4.1 (npm 레지스트리에서 받아 저장소에 포함, 인증서 이미지 캡처용). 외부 CDN 미사용. 업데이트 시 검토 후 교체할 것 |
+| 서드파티 라이브러리 | `js/html2canvas.min.js` — [html2canvas](https://github.com/niklasvh/html2canvas) v1.4.1 (인증서 이미지 캡처용)<br/>`js/qrcode.min.js` — [qrcodejs](https://github.com/davidshimjs/qrcodejs) v1.0.0 (관리자 QR 생성용)<br/>모두 npm 레지스트리에서 받아 저장소에 포함하며 **외부 CDN을 런타임에 사용하지 않습니다.** 업데이트 시 검토 후 교체할 것 |
 
 ---
 
@@ -132,7 +132,8 @@ GitHub Pages 활성화:
 > 루트에 그대로 덮어쓰지 말고 하위 폴더(`/avsec-event/` 등)에 업로드한 뒤
 > 해당 경로로 접속 URL이 구성되는지 확인할 것
 
-배포 후 `admin.html`의 "QR / 접속 링크" 영역에 위 URL을 입력하면 현장 게시용 QR코드를 생성할 수 있습니다.
+배포 후 `admin.html`의 **행사 관리 표에서 각 행사의 "QR" 버튼**을 누르면 해당 행사 전용 QR코드가 표시됩니다.
+접속 주소는 관리자 페이지 주소에서 자동으로 채워지며, 필요하면 "접속 주소 설정"에서 바꿀 수 있습니다.
 
 ---
 

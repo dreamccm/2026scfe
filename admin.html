@@ -50,6 +50,15 @@
     <select id="eventFilter"></select>
     <span id="eventFilterMeta" style="font-size:12px;color:var(--text-muted)"></span>
   </div>
+  <details class="site-url-box">
+    <summary>접속 주소 설정 <span id="siteUrlPreview"></span></summary>
+    <label class="field-label" for="siteUrlInput">참가자용 페이지 URL (GitHub Pages 배포 주소)</label>
+    <input type="text" id="siteUrlInput" placeholder="https://your-id.github.io/repo-name/" />
+    <p style="font-size:12px;color:var(--text-muted);margin:8px 0 0">
+      현재 관리자 페이지 주소에서 자동으로 채워집니다. 로컬에서 열어 실제 배포용 QR을 만들 때만 수정하세요.
+      <button class="btn btn-ghost" id="btnGenBaseQr" style="width:auto;padding:6px 12px;font-size:12px;margin:8px 0 0">기본 주소 QR 보기</button>
+    </p>
+  </details>
   <div class="table-wrap">
     <table class="participants events-table">
       <thead>
@@ -71,19 +80,6 @@
     <input type="datetime-local" id="newEventStart" title="시작 일시(선택)" />
     <input type="datetime-local" id="newEventEnd" title="종료 일시(선택)" />
     <button class="btn btn-secondary" id="btnAddEvent" style="width:auto">행사 추가</button>
-  </div>
-
-  <div class="section-title">
-    <span>QR / 접속 링크</span>
-  </div>
-  <div class="qr-box">
-    <div id="qrCanvasHolder"></div>
-    <div class="qr-meta">
-      <label class="field-label" for="siteUrlInput">참가자용 페이지 URL (GitHub Pages 배포 주소)</label>
-      <input type="text" id="siteUrlInput" placeholder="https://your-id.github.io/repo-name/" />
-      <button class="btn btn-secondary" id="btnGenQr" style="width:auto;padding:10px 16px;font-size:13px;margin-top:6px">QR 생성</button>
-      <p id="qrTargetInfo" style="font-size:12px;color:var(--text-muted);margin:8px 0 0"></p>
-    </div>
   </div>
 
   <div class="section-title">
@@ -162,7 +158,20 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- QR 팝업 -->
+<div class="qr-modal" id="qrModal" style="display:none">
+  <div class="qr-modal-inner">
+    <h3 id="qrModalTitle">행사 QR</h3>
+    <div id="qrCanvasHolder"></div>
+    <p class="qr-modal-url" id="qrModalUrl"></p>
+    <div class="qr-modal-actions">
+      <button class="btn btn-secondary" id="btnCopyQrUrl">링크 복사</button>
+      <button class="btn btn-ghost" id="btnCloseQr">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/qrcode.min.js"></script>
 <script type="module" src="js/admin.js"></script>
 </body>
 </html>

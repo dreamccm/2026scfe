@@ -547,12 +547,20 @@ function renderEventsTable() {
               style="width:90px" title="사용할 미션 번호를 순서대로 입력 (예: 1,2,3 또는 3,1)" /></td>
         <td>${count}</td>
         <td>
+          <button class="btn btn-secondary ev-qr" data-id="${e.id}">QR</button>
           <button class="btn btn-secondary ev-save" data-id="${e.id}">저장</button>
           <button class="btn btn-danger ev-del" data-id="${e.id}">삭제</button>
         </td>
       </tr>`;
     })
     .join("");
+
+  body.querySelectorAll(".ev-qr").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      openQrModal(`${eventNameById(id)} 전용 QR`, siteUrlFor(id));
+    })
+  );
 
   body.querySelectorAll(".ev-save").forEach((btn) =>
     btn.addEventListener("click", async () => {
@@ -656,25 +664,64 @@ document.getElementById("btnAddEvent").addEventListener("click", async () => {
   btn.disabled = false;
 });
 
-// 선택한 행사 기준으로 QR 대상 URL 안내 갱신
-function selectedEventUrl() {
+// 참가자 접속 URL — 행사 ID를 주면 해당 행사 전용 링크(?event=<ID>)
+function siteUrlFor(eventId) {
   const base = document.getElementById("siteUrlInput").value.trim();
   if (!base) return "";
-  if (selectedEventId === "all" || selectedEventId === LEGACY_EVENT_ID) return base;
+  if (!eventId) return base;
   const sep = base.includes("?") ? "&" : "?";
-  return `${base}${sep}${EVENT_PARAM}=${selectedEventId}`;
+  return `${base}${sep}${EVENT_PARAM}=${eventId}`;
 }
 
+// 접이식 "접속 주소 설정" 요약에 현재 기본 주소를 짧게 표시
 function updateQrTargetInfo() {
-  const info = document.getElementById("qrTargetInfo");
-  if (!info) return;
-  if (selectedEventId === "all" || selectedEventId === LEGACY_EVENT_ID) {
-    info.textContent = "행사를 선택하면 해당 행사 전용 QR이 생성됩니다. (현재는 기본 URL)";
-  } else {
-    const url = selectedEventUrl();
-    info.textContent = url ? `대상: ${eventNameById(selectedEventId)} → ${url}` : "";
-  }
+  const preview = document.getElementById("siteUrlPreview");
+  if (!preview) return;
+  const base = siteUrlFor(null);
+  preview.textContent = base ? `· ${base}` : "· 주소를 입력하세요";
 }
+
+// QR 팝업 열기 (행사별 또는 기본 주소)
+function openQrModal(title, url) {
+  if (!url) {
+    alert("먼저 '접속 주소 설정'에서 참가자용 페이지 URL을 입력하세요.");
+    return;
+  }
+  document.getElementById("qrModalTitle").textContent = title;
+  document.getElementById("qrModalUrl").textContent = url;
+  const holder = document.getElementById("qrCanvasHolder");
+  holder.innerHTML = "";
+  // eslint-disable-next-line no-undef
+  new QRCode(holder, { text: url, width: 180, height: 180 });
+  document.getElementById("qrModal").style.display = "flex";
+}
+
+function closeQrModal() {
+  document.getElementById("qrModal").style.display = "none";
+}
+
+document.getElementById("btnCloseQr").addEventListener("click", closeQrModal);
+document.getElementById("qrModal").addEventListener("click", (e) => {
+  if (e.target.id === "qrModal") closeQrModal(); // 바깥 클릭 시 닫기
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeQrModal();
+});
+document.getElementById("btnCopyQrUrl").addEventListener("click", async () => {
+  const url = document.getElementById("qrModalUrl").textContent;
+  const btn = document.getElementById("btnCopyQrUrl");
+  try {
+    await navigator.clipboard.writeText(url);
+    const prev = btn.textContent;
+    btn.textContent = "복사됨!";
+    setTimeout(() => (btn.textContent = prev), 1500);
+  } catch (err) {
+    alert("복사에 실패했습니다. 주소를 직접 선택해 복사하세요.");
+  }
+});
+document.getElementById("btnGenBaseQr").addEventListener("click", () =>
+  openQrModal("기본 주소 QR", siteUrlFor(null))
+);
 
 function renderStats(rows) {
   const total = rows.length;
@@ -843,23 +890,6 @@ document.getElementById("btnExportCsv").addEventListener("click", () => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-});
-
-// ---------------------------------------------------------------------
-// QR 코드 생성 (참가자 접속 URL)
-// ---------------------------------------------------------------------
-document.getElementById("btnGenQr").addEventListener("click", () => {
-  if (!document.getElementById("siteUrlInput").value.trim()) {
-    alert("URL을 입력하세요");
-    return;
-  }
-  // "보기 대상"으로 행사를 고르면 해당 행사 전용 QR(?event=<ID>)이 생성된다
-  const url = selectedEventUrl();
-  const holder = document.getElementById("qrCanvasHolder");
-  holder.innerHTML = "";
-  // eslint-disable-next-line no-undef
-  new QRCode(holder, { text: url, width: 120, height: 120 });
-  updateQrTargetInfo();
 });
 
 // 참가자용 URL: 저장해 둔 값 → 없으면 현재 관리자 페이지 주소에서 추론
