@@ -274,8 +274,9 @@ function renderMissionEditor() {
         </div>`;
     }
 
-    return `<div class="qr-box" style="display:block;margin-bottom:16px">
-      <div class="section-title" style="margin-top:0"><span>MISSION 0${n}</span></div>
+    // 기본은 접힌 상태 — 제목을 클릭하면 펼쳐진다
+    return `<details class="mission-block">
+      <summary>MISSION 0${n} <span class="mission-summary-name">${escapeHtml(m.name || "")}</span></summary>
       ${textRow("미션 카드 제목", `m${n}-name`, m.name)}
       ${textRow("미션 카드 한 줄 설명", `m${n}-cardDesc`, m.cardDesc)}
       ${textRow("안내 화면 제목", `m${n}-title`, m.title)}
@@ -283,7 +284,7 @@ function renderMissionEditor() {
       ${textRow("안내 문구 2줄", `m${n}-line2`, m.line2)}
       ${timeField}
       ${listEditor}
-    </div>`;
+    </details>`;
   };
 
   root.innerHTML = [1, 2, 3].map(block).join("");
