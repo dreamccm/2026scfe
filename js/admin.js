@@ -1,5 +1,10 @@
 import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
 import { EVENT_PARAM, LEGACY_EVENT_ID, LEGACY_EVENT_NAME, formatEventPeriod } from "./events.js";
+import {
+  MISSION_SETTINGS_PATH,
+  DEFAULT_MISSION_CONFIG,
+  mergeMissionConfig,
+} from "./mission-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -85,6 +90,7 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("loginBox").style.display = "none";
     document.getElementById("adminApp").style.display = "block";
     startListener();
+    loadMissionsForEdit();
   } else {
     currentUserEmail = "";
     currentIsOwner = false;
@@ -193,6 +199,225 @@ function renderAll() {
         : `${eventNameById(selectedEventId)} · ${scoped.length}명`;
   }
 }
+
+// ---------------------------------------------------------------------
+// 미션 설정 편집 (문구·항목·제한시간). 배점 공식은 코드 고정.
+// ---------------------------------------------------------------------
+let missionCfg = JSON.parse(JSON.stringify(DEFAULT_MISSION_CONFIG));
+
+async function loadMissionsForEdit() {
+  try {
+    const snap = await getDoc(doc(db, MISSION_SETTINGS_PATH.collection, MISSION_SETTINGS_PATH.docId));
+    missionCfg = mergeMissionConfig(snap.exists() ? snap.data() : null);
+  } catch (e) {
+    console.warn("미션 설정 조회 실패(기본값 표시):", e.message);
+    missionCfg = mergeMissionConfig(null);
+  }
+  renderMissionEditor();
+}
+
+function textRow(label, id, value) {
+  return `<div style="margin-bottom:10px">
+    <label class="field-label" for="${id}">${escapeHtml(label)}</label>
+    <input type="text" id="${id}" value="${escapeHtml(value || "")}" style="width:100%" />
+  </div>`;
+}
+
+function renderMissionEditor() {
+  const root = document.getElementById("missionEditor");
+  if (!root) return;
+
+  const block = (n) => {
+    const m = missionCfg["mission" + n];
+    const timeField =
+      "durationSec" in m
+        ? `<div style="margin-bottom:10px">
+             <label class="field-label" for="m${n}-duration">제한시간(초)</label>
+             <input type="number" id="m${n}-duration" min="5" max="300" value="${m.durationSec}" />
+           </div>`
+        : `<div style="margin-bottom:10px">
+             <label class="field-label" for="m${n}-seqlen">기억할 배선 개수 (3~12)</label>
+             <input type="number" id="m${n}-seqlen" min="3" max="12" value="${m.seqLen}" />
+           </div>`;
+
+    let listEditor = "";
+    if (n === 1) {
+      listEditor = `
+        <div class="section-title" style="margin-top:6px"><span>위험물 · 안전물품 목록</span></div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">
+          "위험물" 체크가 정답 항목입니다. 각 종류가 최소 1개씩 필요하며, 게임에서는 매번 위험물 6개·안전물품 6개가 무작위로 선택됩니다.
+        </p>
+        <div class="table-wrap"><table class="participants events-table"><thead><tr>
+          <th style="width:80px">이모지</th><th>이름</th><th style="width:90px">위험물</th><th style="width:80px">삭제</th>
+        </tr></thead><tbody id="m1-items"></tbody></table></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn btn-ghost" id="m1-add" style="width:auto">항목 추가</button>
+        </div>`;
+    } else if (n === 3) {
+      listEditor = `
+        <div class="section-title" style="margin-top:6px"><span>직업 · 설명 짝</span></div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">
+          최소 2쌍 필요합니다. 배점 공식이 6쌍 기준(짝당 20점)이므로 <strong>6쌍 유지를 권장</strong>합니다.
+        </p>
+        <div class="table-wrap"><table class="participants events-table"><thead><tr>
+          <th style="width:80px">이모지</th><th style="width:160px">직업명</th><th>설명</th><th style="width:80px">삭제</th>
+        </tr></thead><tbody id="m3-pairs"></tbody></table></div>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn btn-ghost" id="m3-add" style="width:auto">짝 추가</button>
+        </div>`;
+    }
+
+    return `<div class="qr-box" style="display:block;margin-bottom:16px">
+      <div class="section-title" style="margin-top:0"><span>MISSION 0${n}</span></div>
+      ${textRow("미션 카드 제목", `m${n}-name`, m.name)}
+      ${textRow("미션 카드 한 줄 설명", `m${n}-cardDesc`, m.cardDesc)}
+      ${textRow("안내 화면 제목", `m${n}-title`, m.title)}
+      ${textRow("안내 문구 1줄", `m${n}-line1`, m.line1)}
+      ${textRow("안내 문구 2줄", `m${n}-line2`, m.line2)}
+      ${timeField}
+      ${listEditor}
+    </div>`;
+  };
+
+  root.innerHTML = [1, 2, 3].map(block).join("");
+  renderItemRows();
+  renderPairRows();
+
+  document.getElementById("m1-add").addEventListener("click", () => {
+    missionCfg.mission1.items.push({ e: "❓", l: "새 항목", d: false });
+    renderItemRows();
+  });
+  document.getElementById("m3-add").addEventListener("click", () => {
+    missionCfg.mission3.pairs.push({ id: "pair" + Date.now(), emoji: "❓", label: "새 직업", duty: "설명" });
+    renderPairRows();
+  });
+}
+
+function renderItemRows() {
+  const body = document.getElementById("m1-items");
+  if (!body) return;
+  body.innerHTML = missionCfg.mission1.items
+    .map(
+      (it, i) => `<tr>
+        <td><input type="text" class="it-e" data-i="${i}" value="${escapeHtml(it.e)}" style="width:60px" /></td>
+        <td><input type="text" class="it-l" data-i="${i}" value="${escapeHtml(it.l)}" /></td>
+        <td><input type="checkbox" class="it-d" data-i="${i}" ${it.d ? "checked" : ""} /></td>
+        <td><button class="btn btn-danger it-del" data-i="${i}">삭제</button></td>
+      </tr>`
+    )
+    .join("");
+  body.querySelectorAll(".it-del").forEach((b) =>
+    b.addEventListener("click", () => {
+      collectItemRows();
+      missionCfg.mission1.items.splice(Number(b.dataset.i), 1);
+      renderItemRows();
+    })
+  );
+}
+
+function renderPairRows() {
+  const body = document.getElementById("m3-pairs");
+  if (!body) return;
+  body.innerHTML = missionCfg.mission3.pairs
+    .map(
+      (p, i) => `<tr>
+        <td><input type="text" class="pr-e" data-i="${i}" value="${escapeHtml(p.emoji)}" style="width:60px" /></td>
+        <td><input type="text" class="pr-l" data-i="${i}" value="${escapeHtml(p.label)}" /></td>
+        <td><input type="text" class="pr-d" data-i="${i}" value="${escapeHtml(p.duty)}" /></td>
+        <td><button class="btn btn-danger pr-del" data-i="${i}">삭제</button></td>
+      </tr>`
+    )
+    .join("");
+  body.querySelectorAll(".pr-del").forEach((b) =>
+    b.addEventListener("click", () => {
+      collectPairRows();
+      missionCfg.mission3.pairs.splice(Number(b.dataset.i), 1);
+      renderPairRows();
+    })
+  );
+}
+
+// 화면 입력값을 missionCfg로 수집
+function collectItemRows() {
+  const body = document.getElementById("m1-items");
+  if (!body) return;
+  missionCfg.mission1.items = [...body.querySelectorAll("tr")].map((tr) => ({
+    e: tr.querySelector(".it-e").value.trim(),
+    l: tr.querySelector(".it-l").value.trim(),
+    d: tr.querySelector(".it-d").checked,
+  }));
+}
+
+function collectPairRows() {
+  const body = document.getElementById("m3-pairs");
+  if (!body) return;
+  missionCfg.mission3.pairs = [...body.querySelectorAll("tr")].map((tr, i) => ({
+    id: missionCfg.mission3.pairs[i] ? missionCfg.mission3.pairs[i].id : "pair" + i,
+    emoji: tr.querySelector(".pr-e").value.trim(),
+    label: tr.querySelector(".pr-l").value.trim(),
+    duty: tr.querySelector(".pr-d").value.trim(),
+  }));
+}
+
+function collectMissionEditor() {
+  [1, 2, 3].forEach((n) => {
+    const m = missionCfg["mission" + n];
+    const val = (id) => {
+      const el = document.getElementById(id);
+      return el ? el.value.trim() : "";
+    };
+    m.name = val(`m${n}-name`);
+    m.cardDesc = val(`m${n}-cardDesc`);
+    m.title = val(`m${n}-title`);
+    m.line1 = val(`m${n}-line1`);
+    m.line2 = val(`m${n}-line2`);
+    const dEl = document.getElementById(`m${n}-duration`);
+    if (dEl) m.durationSec = Number(dEl.value);
+    const sEl = document.getElementById(`m${n}-seqlen`);
+    if (sEl) m.seqLen = Number(sEl.value);
+  });
+  collectItemRows();
+  collectPairRows();
+}
+
+document.getElementById("btnSaveMissions").addEventListener("click", async () => {
+  collectMissionEditor();
+  // 저장 전 유효성 확인 — 잘못된 설정으로 게임이 깨지지 않도록
+  const items = missionCfg.mission1.items.filter((i) => i.e && i.l);
+  if (!items.some((i) => i.d) || !items.some((i) => !i.d)) {
+    return alert("미션1: 위험물과 안전물품이 각각 최소 1개씩 필요합니다.");
+  }
+  const pairs = missionCfg.mission3.pairs.filter((p) => p.emoji && p.label && p.duty);
+  if (pairs.length < 2) return alert("미션3: 직업 짝이 최소 2개 필요합니다.");
+  if (!(missionCfg.mission1.durationSec > 0) || !(missionCfg.mission3.durationSec > 0)) {
+    return alert("제한시간은 1초 이상이어야 합니다.");
+  }
+
+  const msg = document.getElementById("missionSaveMsg");
+  const btn = document.getElementById("btnSaveMissions");
+  btn.disabled = true;
+  msg.textContent = "저장 중...";
+  try {
+    await setDoc(doc(db, MISSION_SETTINGS_PATH.collection, MISSION_SETTINGS_PATH.docId), {
+      ...missionCfg,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUserEmail,
+    });
+    msg.textContent = "저장했습니다. 참가자 화면은 새로고침 시 반영됩니다.";
+  } catch (e) {
+    console.error(e);
+    msg.textContent = "";
+    alert("저장 실패: " + e.message);
+  }
+  btn.disabled = false;
+});
+
+document.getElementById("btnResetMissions").addEventListener("click", () => {
+  if (!confirm("편집 중인 내용을 기본값으로 되돌립니다. (저장을 눌러야 실제 반영됩니다)")) return;
+  missionCfg = JSON.parse(JSON.stringify(DEFAULT_MISSION_CONFIG));
+  renderMissionEditor();
+  document.getElementById("missionSaveMsg").textContent = "기본값을 불러왔습니다. 저장을 눌러 반영하세요.";
+});
 
 // ---------------------------------------------------------------------
 // 관리자 권한 관리 (계정 생성은 Firebase 콘솔, 여기서는 권한만 부여/회수)

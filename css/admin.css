@@ -190,3 +190,16 @@ table.events-table input[type="datetime-local"] {
   font-family: var(--font-body);
   font-size: 13px;
 }
+/* 미션 설정 편집기의 숫자 입력칸도 다른 입력과 동일한 스타일로 */
+#missionEditor input[type="number"] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  width: 120px;
+}
+#missionEditor .section-title { font-size: 13px; }
+#missionEditor table input[type="checkbox"] { width: 18px; height: 18px; }

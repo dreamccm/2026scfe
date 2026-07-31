@@ -1,5 +1,6 @@
 import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
-import { startMission1, startMission2, startMission3 } from "./missions.js";
+import { startMission1, startMission2, startMission3, setMissionConfig } from "./missions.js";
+import { MISSION_SETTINGS_PATH, mergeMissionConfig } from "./mission-config.js";
 import { EVENT_PARAM, LEGACY_EVENT_ID, getEventOpenState, formatEventPeriod } from "./events.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -551,6 +552,44 @@ async function tryAutoResume() {
 }
 
 // ---------------------------------------------------------------------
+// 미션 설정(문구·항목·제한시간) 로드 및 화면 반영
+//   Firestore settings/missions 문서가 없거나 값이 비어 있으면 기본값을 사용한다.
+// ---------------------------------------------------------------------
+async function loadMissionConfig() {
+  let saved = null;
+  try {
+    const snap = await getDoc(doc(db, MISSION_SETTINGS_PATH.collection, MISSION_SETTINGS_PATH.docId));
+    if (snap.exists()) saved = snap.data();
+  } catch (e) {
+    console.warn("미션 설정 조회 실패(기본값 사용):", e.message);
+  }
+  const cfg = mergeMissionConfig(saved);
+  setMissionConfig(cfg); // 게임 로직(missions.js)에 반영
+  applyMissionConfigToUI(cfg);
+}
+
+// 미션 카드·사전 안내 화면의 문구를 설정값으로 갱신
+function applyMissionConfigToUI(cfg) {
+  [1, 2, 3].forEach((n) => {
+    const m = cfg["mission" + n];
+    if (!m) return;
+    const set = (id, value, html = false) => {
+      const el = document.getElementById(id);
+      if (!el || value == null) return;
+      if (html) el.innerHTML = value;
+      else el.textContent = value;
+    };
+    set("cardName-" + n, m.name);
+    set("cardDesc-" + n, m.cardDesc);
+    set("preTitle-" + n, m.title);
+    // 안내 문구는 <strong> 등 간단한 강조 태그를 허용 (관리자만 편집 가능)
+    set("preLine1-" + n, m.line1, true);
+    set("preLine2-" + n, m.line2, true);
+    if (m.durationSec) set("preTime-" + n, m.durationSec + "초");
+  });
+}
+
+// ---------------------------------------------------------------------
 // 행사(세션) 결정 — ?event=<ID> → 활성 행사 → 레거시(기본)
 // ---------------------------------------------------------------------
 async function resolveEvent() {
@@ -620,7 +659,7 @@ function applyEventToUI() {
 
 (async function init() {
   applyKioskParam(); // ?kiosk=1 로 접속한 공용 기기는 참여 횟수 제한 면제
-  await resolveEvent();
+  await Promise.all([resolveEvent(), loadMissionConfig()]);
   applyEventToUI();
   await tryAutoResume();
 })();

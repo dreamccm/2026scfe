@@ -37,6 +37,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // 미션 설정(문구·항목·제한시간): 참가자 앱이 읽어야 하므로 공개 읽기, 쓰기는 관리자만
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /participants/{docId} {
 
       // 리더보드/관리자 화면 모두 닉네임·점수만 노출되므로 공개 읽기 허용

@@ -4,6 +4,14 @@
 // score: 0~100, timeMs: 진행 시간(ms)
 // =====================================================================
 
+import { DEFAULT_MISSION_CONFIG } from "./mission-config.js";
+
+// 현재 적용 중인 미션 설정(관리자 화면에서 편집 가능). 기본값으로 시작한다.
+let CFG = DEFAULT_MISSION_CONFIG;
+export function setMissionConfig(cfg) {
+  if (cfg) CFG = cfg;
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -20,24 +28,6 @@ function sleep(ms) {
 // ---------------------------------------------------------------------
 // 미션 1: 보안검색요원 — 위험물 찾기
 // ---------------------------------------------------------------------
-const ITEM_POOL = [
-  { e: "🔪", l: "칼", d: true },
-  { e: "✂️", l: "가위", d: true },
-  { e: "🔥", l: "라이터", d: true },
-  { e: "🔨", l: "망치", d: true },
-  { e: "🪚", l: "톱", d: true },
-  { e: "💣", l: "폭발물(모형)", d: true },
-  { e: "🧪", l: "인화성 액체", d: true },
-  { e: "📱", l: "휴대폰", d: false },
-  { e: "👛", l: "지갑", d: false },
-  { e: "🧸", l: "인형", d: false },
-  { e: "📖", l: "책", d: false },
-  { e: "☂️", l: "우산", d: false },
-  { e: "🎧", l: "헤드폰", d: false },
-  { e: "🕶️", l: "안경", d: false },
-  { e: "🧦", l: "양말", d: false },
-];
-
 export function startMission1(onComplete) {
   const grid = document.getElementById("m1-grid");
   const timerBar = document.getElementById("m1-timerBar");
@@ -45,12 +35,13 @@ export function startMission1(onComplete) {
   timerBar.classList.remove("danger");
   grid.innerHTML = "";
 
-  const dangerous = shuffle(ITEM_POOL.filter((i) => i.d)).slice(0, 6);
-  const safe = shuffle(ITEM_POOL.filter((i) => !i.d)).slice(0, 6);
+  const pool = CFG.mission1.items;
+  const dangerous = shuffle(pool.filter((i) => i.d)).slice(0, 6);
+  const safe = shuffle(pool.filter((i) => !i.d)).slice(0, 6);
   const tiles = shuffle([...dangerous, ...safe]);
 
   const total = dangerous.length;
-  const duration = 20000;
+  const duration = CFG.mission1.durationSec * 1000;
   const start = performance.now();
   let correct = 0,
     wrong = 0,
@@ -109,7 +100,7 @@ export function startMission1(onComplete) {
 // ---------------------------------------------------------------------
 export async function startMission2(onComplete) {
   const colors = ["red", "yellow", "blue", "green"];
-  const seqLen = 6;
+  const seqLen = CFG.mission2.seqLen;
   const sequence = Array.from(
     { length: seqLen },
     () => colors[Math.floor(Math.random() * colors.length)]
@@ -183,14 +174,6 @@ export async function startMission2(onComplete) {
 // 미션 3: 공항 직업 커넥트 — 직업 아이콘과 직무 설명 짝맞추기
 // (출처: KAC "공항에서 찾아보는 다양한 직업들" 자료 기반)
 // ---------------------------------------------------------------------
-const JOB_PAIRS = [
-  { id: "pilot",    emoji: "✈️", label: "조종사",          duty: "비행기를 조종하는 하늘 위의 리더" },
-  { id: "atc",      emoji: "🗼", label: "관제사",          duty: "이륙·착륙 순서를 지정하고 안전한 길을 안내해요" },
-  { id: "fire",     emoji: "🚒", label: "공항소방대",      duty: "공항 내 사고에 신속히 출동해 인명을 구조해요" },
-  { id: "security", emoji: "🛂", label: "보안검색요원",    duty: "기내 반입 물품을 X-ray로 확인해요" },
-  { id: "eod",      emoji: "💣", label: "폭발물처리요원",  duty: "특수 장비로 의심물의 형태·성분을 확인해요" },
-  { id: "mech",     emoji: "🔧", label: "항공정비사",      duty: "항공기가 안전하게 날 수 있도록 이착륙 전후 점검하고 수리해요" },
-];
 
 export function startMission3(onComplete) {
   const grid = document.getElementById("m3-grid");
@@ -200,7 +183,7 @@ export function startMission3(onComplete) {
   timerBar.classList.remove("danger");
   grid.innerHTML = "";
 
-  const duration = 60000;
+  const duration = CFG.mission3.durationSec * 1000;
   const start = performance.now();
   let matched = 0,
     wrong = 0,
@@ -208,15 +191,15 @@ export function startMission3(onComplete) {
     selected = null,
     raf;
 
-  statusLabel.textContent = `남은 짝: ${JOB_PAIRS.length}`;
+  statusLabel.textContent = `남은 짝: ${CFG.mission3.pairs.length}`;
 
   const tiles = shuffle([
-    ...JOB_PAIRS.map((j) => ({
+    ...CFG.mission3.pairs.map((j) => ({
       pairId: j.id,
       kind: "job",
       html: `<div class="mt-icon">${j.emoji}</div><div class="mt-text">${j.label}</div>`,
     })),
-    ...JOB_PAIRS.map((j) => ({
+    ...CFG.mission3.pairs.map((j) => ({
       pairId: j.id,
       kind: "duty",
       html: `<div class="mt-text">${j.duty}</div>`,
@@ -253,9 +236,9 @@ export function startMission3(onComplete) {
       selected.el.classList.add("matched");
       el.classList.add("matched");
       matched++;
-      statusLabel.textContent = `남은 짝: ${JOB_PAIRS.length - matched}`;
+      statusLabel.textContent = `남은 짝: ${CFG.mission3.pairs.length - matched}`;
       selected = null;
-      if (matched >= JOB_PAIRS.length) endGame(true);
+      if (matched >= CFG.mission3.pairs.length) endGame(true);
     } else {
       wrong++;
       const prevEl = selected.el;
