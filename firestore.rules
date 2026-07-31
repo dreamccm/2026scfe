@@ -9,11 +9,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 지정된 관리자 계정만 관리자 권한을 가짐
-    // (가입 차단과 별개의 이중 방어 — 다른 경로로 인증된 계정이 생겨도 권한 없음)
-    function isAdmin() {
+    // 소유자(최상위 관리자) — 코드에 고정된 계정.
+    // admins 컬렉션이 비어도 잠기지 않도록 하는 최후 수단이며,
+    // 관리자 명단(admins)을 수정할 수 있는 것도 소유자뿐이다.
+    function isOwner() {
       return request.auth != null
              && request.auth.token.email in ['admin@kac.astc', 'isaac@airport.co.kr'];
+    }
+
+    // 관리자 = 소유자 이거나, admins 컬렉션에 이메일로 등록된 계정
+    // (가입 차단과 별개의 이중 방어 — 다른 경로로 인증된 계정이 생겨도 권한 없음)
+    function isAdmin() {
+      return isOwner()
+             || (request.auth != null
+                 && exists(/databases/$(database)/documents/admins/$(request.auth.token.email)));
+    }
+
+    // 관리자 명단: 관리자는 조회 가능, 추가·삭제는 소유자만 가능(권한 상승 방지)
+    match /admins/{adminEmail} {
+      allow read: if isAdmin();
+      allow write: if isOwner();
     }
 
     // 행사(세션): 참가자 앱이 행사명·일정을 읽어야 하므로 공개 읽기, 쓰기는 관리자만

@@ -13,6 +13,7 @@ import {
   collection,
   onSnapshot,
   doc,
+  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -28,28 +29,72 @@ const db = getFirestore(app);
 
 let allRows = [];
 let allEvents = [];
+let allAdmins = [];
 let selectedEventId = "all"; // "all" | 행사 문서 ID | LEGACY_EVENT_ID
 let unsubscribe = null;
 let unsubscribeEvents = null;
+let unsubscribeAdmins = null;
+let currentUserEmail = "";
+let currentIsOwner = false;
+
+// 아이디 형태(@ 없음) 입력 시 가상 도메인을 붙여 Firebase 이메일 계정으로 매핑
+const ADMIN_ID_DOMAIN = "@kac.astc";
+
+// 소유자(최상위 관리자) — ⚠ firestore.rules 의 isOwner() 목록과 반드시 동일하게 유지할 것.
+// 여기 목록은 화면 표시/버튼 노출용이며, 실제 권한 판정은 항상 Firestore 규칙이 담당한다.
+const OWNER_EMAILS = ["admin@kac.astc", "isaac@airport.co.kr"];
+
+function toEmail(idOrEmail) {
+  const v = idOrEmail.trim().toLowerCase();
+  return v.includes("@") ? v : v + ADMIN_ID_DOMAIN;
+}
+
+// 아이디 형태 계정은 화면에 아이디만 보여준다 (staff1@kac.astc → staff1)
+function displayAccount(email) {
+  return email.endsWith(ADMIN_ID_DOMAIN) ? email.slice(0, -ADMIN_ID_DOMAIN.length) : email;
+}
 
 // ---------------------------------------------------------------------
-// 인증 상태
+// 인증 상태 — 로그인 계정이 실제 관리자인지 확인 후에만 대시보드를 연다
 // ---------------------------------------------------------------------
-onAuthStateChanged(auth, (user) => {
+async function isAdminAccount(email) {
+  if (OWNER_EMAILS.includes(email)) return true;
+  try {
+    const snap = await getDoc(doc(db, "admins", email));
+    return snap.exists();
+  } catch (e) {
+    // 권한이 없으면 규칙에서 읽기 자체가 거부된다 → 관리자가 아님
+    return false;
+  }
+}
+
+onAuthStateChanged(auth, async (user) => {
   if (user) {
+    const email = (user.email || "").toLowerCase();
+    if (!(await isAdminAccount(email))) {
+      document.getElementById("loginError").textContent =
+        "이 계정에는 관리자 권한이 없습니다. 관리자에게 권한 부여를 요청하세요.";
+      await signOut(auth);
+      return;
+    }
+    currentUserEmail = email;
+    currentIsOwner = OWNER_EMAILS.includes(email);
+    document.getElementById("currentAdmin").textContent =
+      `${displayAccount(email)} · ${currentIsOwner ? "소유자" : "관리자"}`;
+    document.getElementById("adminAddRow").style.display = currentIsOwner ? "" : "none";
     document.getElementById("loginBox").style.display = "none";
     document.getElementById("adminApp").style.display = "block";
     startListener();
   } else {
+    currentUserEmail = "";
+    currentIsOwner = false;
     document.getElementById("loginBox").style.display = "block";
     document.getElementById("adminApp").style.display = "none";
     if (unsubscribe) unsubscribe();
     if (unsubscribeEvents) unsubscribeEvents();
+    if (unsubscribeAdmins) unsubscribeAdmins();
   }
 });
-
-// 아이디 형태(@ 없음) 입력 시 가상 도메인을 붙여 Firebase 이메일 계정으로 매핑
-const ADMIN_ID_DOMAIN = "@kac.astc";
 
 document.getElementById("btnLogin").addEventListener("click", async () => {
   const idOrEmail = document.getElementById("loginEmail").value.trim();
@@ -79,6 +124,17 @@ function startListener() {
     },
     (err) => {
       console.error("참가자 목록 구독 실패", err);
+    }
+  );
+  unsubscribeAdmins = onSnapshot(
+    collection(db, "admins"),
+    (snap) => {
+      allAdmins = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      allAdmins.sort((a, b) => a.id.localeCompare(b.id));
+      renderAdmins();
+    },
+    (err) => {
+      console.error("관리자 목록 구독 실패", err);
     }
   );
   unsubscribeEvents = onSnapshot(
@@ -137,6 +193,82 @@ function renderAll() {
         : `${eventNameById(selectedEventId)} · ${scoped.length}명`;
   }
 }
+
+// ---------------------------------------------------------------------
+// 관리자 권한 관리 (계정 생성은 Firebase 콘솔, 여기서는 권한만 부여/회수)
+// ---------------------------------------------------------------------
+function renderAdmins() {
+  const body = document.getElementById("adminsBody");
+  if (!body) return;
+
+  const ownerRows = OWNER_EMAILS.map((email) => ({ id: email, note: "소유자(고정)", owner: true }));
+  const rows = [...ownerRows, ...allAdmins.filter((a) => !OWNER_EMAILS.includes(a.id))];
+
+  body.innerHTML = rows
+    .map((a) => {
+      const added =
+        a.addedAt && a.addedAt.toDate ? a.addedAt.toDate().toLocaleDateString("ko-KR") : "-";
+      const me = a.id === currentUserEmail ? ' <span class="event-badge on">나</span>' : "";
+      const manage = a.owner
+        ? '<span style="color:var(--text-muted);font-size:12px">해제 불가</span>'
+        : currentIsOwner
+        ? `<button class="btn btn-danger admin-del" data-id="${escapeHtml(a.id)}">권한 해제</button>`
+        : '<span style="color:var(--text-muted);font-size:12px">소유자만 가능</span>';
+      return `<tr>
+        <td>${escapeHtml(displayAccount(a.id))}${me}</td>
+        <td>${escapeHtml(a.note || "-")}</td>
+        <td>${a.owner ? "-" : added}</td>
+        <td>${manage}</td>
+      </tr>`;
+    })
+    .join("");
+
+  body.querySelectorAll(".admin-del").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      if (id === currentUserEmail && !confirm("본인의 관리자 권한을 해제합니다. 계속할까요?")) return;
+      if (!confirm(`"${displayAccount(id)}"의 관리자 권한을 해제할까요?`)) return;
+      btn.disabled = true;
+      try {
+        await deleteDoc(doc(db, "admins", id));
+      } catch (e) {
+        console.error(e);
+        alert("해제 실패: " + e.message);
+      }
+      btn.disabled = false;
+    })
+  );
+}
+
+document.getElementById("btnAddAdmin").addEventListener("click", async () => {
+  const idEl = document.getElementById("newAdminId");
+  const noteEl = document.getElementById("newAdminNote");
+  const raw = idEl.value.trim();
+  if (!raw) return alert("아이디 또는 이메일을 입력하세요.");
+  const email = toEmail(raw);
+  if (OWNER_EMAILS.includes(email)) return alert("이미 소유자 계정입니다.");
+  if (allAdmins.some((a) => a.id === email)) return alert("이미 관리자로 등록된 계정입니다.");
+
+  const btn = document.getElementById("btnAddAdmin");
+  btn.disabled = true;
+  try {
+    await setDoc(doc(db, "admins", email), {
+      email,
+      note: noteEl.value.trim(),
+      addedAt: serverTimestamp(),
+      addedBy: currentUserEmail,
+    });
+    idEl.value = "";
+    noteEl.value = "";
+    alert(
+      `권한을 부여했습니다.\n\n아직 로그인 계정이 없다면 Firebase 콘솔 > Authentication > 사용자 추가에서\n"${email}" 계정을 만들어야 로그인할 수 있습니다.`
+    );
+  } catch (e) {
+    console.error(e);
+    alert("권한 부여 실패: " + e.message);
+  }
+  btn.disabled = false;
+});
 
 // ---------------------------------------------------------------------
 // 행사(세션) 관리
