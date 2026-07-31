@@ -49,7 +49,14 @@ function toast(msg) {
 // 세션(참가자) 상태
 // ---------------------------------------------------------------------
 const SESSION_KEY = "avsec_session_id";
-const state = { ref: null, sessionId: null, data: null, eventId: LEGACY_EVENT_ID, event: null };
+const state = {
+  ref: null,
+  sessionId: null,
+  data: null,
+  eventId: LEGACY_EVENT_ID,
+  event: null,
+  eventChoices: null, // 동시 진행 행사가 여러 개일 때의 선택 후보
+};
 let leaderboardStarted = false;
 
 function genCode() {
@@ -629,11 +636,21 @@ async function resolveEvent() {
       console.warn("행사 조회 실패:", e.message);
     }
   }
+  // QR 없이 접속한 경우: 진행중으로 표시된 행사들 중에서 고른다.
+  // 여러 행사를 동시에 운영할 수 있으므로, 후보가 2개 이상이면 선택 화면을 띄운다.
   try {
-    const snap = await getDocs(query(collection(db, "events"), where("active", "==", true), limit(1)));
-    if (!snap.empty) {
-      state.eventId = snap.docs[0].id;
-      state.event = snap.docs[0].data();
+    const snap = await getDocs(query(collection(db, "events"), where("active", "==", true)));
+    const candidates = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const openNow = candidates.filter((e) => getEventOpenState(e).open);
+    const pool = openNow.length > 0 ? openNow : candidates;
+
+    if (pool.length > 1) {
+      state.eventChoices = pool; // 선택 화면에서 사용
+      return;
+    }
+    if (pool.length === 1) {
+      state.eventId = pool[0].id;
+      state.event = pool[0];
       return;
     }
   } catch (e) {
@@ -641,6 +658,32 @@ async function resolveEvent() {
   }
   state.eventId = LEGACY_EVENT_ID; // 행사를 하나도 만들지 않은 경우(기존 동작 유지)
   state.event = null;
+}
+
+// 여러 행사가 동시에 진행 중일 때 참가자가 직접 고르는 화면
+function renderEventPicker() {
+  const list = document.getElementById("eventChoiceList");
+  if (!list) return;
+  list.innerHTML = "";
+  state.eventChoices.forEach((ev) => {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-secondary event-choice";
+    btn.innerHTML = `<span class="ec-name"></span><span class="ec-period"></span>`;
+    btn.querySelector(".ec-name").textContent = ev.name || "행사";
+    btn.querySelector(".ec-period").textContent = formatEventPeriod(ev);
+    btn.addEventListener("click", () => selectEvent(ev));
+    list.appendChild(btn);
+  });
+}
+
+// 선택한 행사로 확정하고 평소 흐름(자동 복원 → 시작 화면)으로 진입
+async function selectEvent(ev) {
+  state.eventId = ev.id;
+  state.event = ev;
+  state.eventChoices = null;
+  applyEventToUI();
+  await tryAutoResume();
+  if (!state.data) showScreen("screen-start");
 }
 
 // 시작 화면에서 참가 가능 여부 갱신 (행사 기간 + 기기별 참여 횟수)
@@ -682,6 +725,12 @@ function applyEventToUI() {
 (async function init() {
   applyKioskParam(); // ?kiosk=1 로 접속한 공용 기기는 참여 횟수 제한 면제
   await Promise.all([resolveEvent(), loadMissionConfig()]);
+  if (state.eventChoices) {
+    // 진행중인 행사가 여러 개 → 참가자가 직접 선택
+    renderEventPicker();
+    showScreen("screen-event-select");
+    return;
+  }
   applyEventToUI();
   await tryAutoResume();
 })();
