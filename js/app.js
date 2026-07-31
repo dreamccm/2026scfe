@@ -1,5 +1,6 @@
 import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
 import { startMission1, startMission2, startMission3 } from "./missions.js";
+import { EVENT_PARAM, LEGACY_EVENT_ID, getEventOpenState, formatEventPeriod } from "./events.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -41,16 +42,62 @@ function toast(msg) {
 // 세션(참가자) 상태
 // ---------------------------------------------------------------------
 const SESSION_KEY = "avsec_session_id";
-const state = { ref: null, sessionId: null, data: null };
+const state = { ref: null, sessionId: null, data: null, eventId: LEGACY_EVENT_ID, event: null };
 let leaderboardStarted = false;
 
 function genCode() {
   return "AV-" + Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-// 같은 닉네임을 쓰는 다른 참가자(문서)가 있는지 확인 (내 기존 세션은 제외)
+// ---------------------------------------------------------------------
+// 기기별 참여 횟수 제한 (행사당 최대 2회)
+//   localStorage 기반이라 시크릿 모드·캐시 삭제로 우회가 가능하다.
+//   로그인이 없는 구조에서의 한계이며, 완전 차단이 아닌 중복 참여 억제용.
+//
+//   부스에 비치한 공용 기기(여러 명이 순서대로 사용)는 이 제한에 걸리면 안 되므로
+//   ?kiosk=1 로 한 번 접속해 두면 해당 기기는 제한이 면제된다. (?kiosk=0 으로 해제)
+// ---------------------------------------------------------------------
+const MAX_PLAYS_PER_EVENT = 2;
+const KIOSK_KEY = "avsec_kiosk";
+
+function playCountKey(eventId) {
+  return `avsec_plays_${eventId}`;
+}
+
+function getPlayCount(eventId) {
+  return parseInt(localStorage.getItem(playCountKey(eventId)) || "0", 10) || 0;
+}
+
+function incPlayCount(eventId) {
+  localStorage.setItem(playCountKey(eventId), String(getPlayCount(eventId) + 1));
+}
+
+function isKioskDevice() {
+  return localStorage.getItem(KIOSK_KEY) === "1";
+}
+
+// 공용 기기 지정/해제 (?kiosk=1 / ?kiosk=0)
+function applyKioskParam() {
+  const v = new URLSearchParams(location.search).get("kiosk");
+  if (v === "1") localStorage.setItem(KIOSK_KEY, "1");
+  else if (v === "0") localStorage.removeItem(KIOSK_KEY);
+}
+
+// 이 기기가 현재 행사에 더 참여할 수 있는지
+function canPlayMore() {
+  if (isKioskDevice()) return true;
+  return getPlayCount(state.eventId) < MAX_PLAYS_PER_EVENT;
+}
+
+// 같은 닉네임을 쓰는 다른 참가자(문서)가 있는지 확인 (내 기존 세션은 제외).
+// 닉네임 중복은 같은 행사 안에서만 따진다 — 행사가 다르면 같은 닉네임을 허용.
 async function checkNicknameTaken(nickname, excludeId) {
-  const q = query(collection(db, "participants"), where("nickname", "==", nickname), limit(2));
+  const q = query(
+    collection(db, "participants"),
+    where("eventId", "==", state.eventId),
+    where("nickname", "==", nickname),
+    limit(2)
+  );
   const snap = await getDocs(q);
   return snap.docs.some((d) => d.id !== excludeId);
 }
@@ -61,9 +108,17 @@ async function getOrCreateSession(nickname) {
   if (sessionId) {
     const ref = doc(db, "participants", sessionId);
     const snap = await getDoc(ref);
-    if (snap.exists()) {
+    // 같은 행사의 기존 세션만 이어받는다(다른 행사 QR로 들어왔다면 새 참가자로 시작)
+    if (snap.exists() && (snap.data().eventId || LEGACY_EVENT_ID) === state.eventId) {
       return { ref, sessionId, data: snap.data() };
     }
+  }
+
+  // 여기부터는 새 참가자 생성 — 기기별 참여 횟수 제한 확인
+  if (!canPlayMore()) {
+    const err = new Error("play limit reached");
+    err.code = "play-limit";
+    throw err;
   }
 
   sessionId =
@@ -74,6 +129,7 @@ async function getOrCreateSession(nickname) {
   const ref = doc(db, "participants", sessionId);
   const data = {
     nickname,
+    eventId: state.eventId,
     createdAt: serverTimestamp(),
     mission1: null,
     mission2: null,
@@ -86,6 +142,7 @@ async function getOrCreateSession(nickname) {
   };
   await setDoc(ref, data);
   localStorage.setItem(SESSION_KEY, sessionId);
+  incPlayCount(state.eventId); // 새 참가자 생성 = 1회 참여로 집계
   return { ref, sessionId, data };
 }
 
@@ -176,8 +233,12 @@ function showComplete() {
 function startLeaderboardListener() {
   if (leaderboardStarted) return;
   leaderboardStarted = true;
+  // 현재 행사 참가자만 순위에 표시
+  // ⚠ Firestore 복합 색인 필요: eventId(==) + totalScore(desc) + totalTimeMs(asc)
+  //    최초 실행 시 브라우저 콘솔에 표시되는 링크로 색인을 생성하세요.
   const q = query(
     collection(db, "participants"),
+    where("eventId", "==", state.eventId),
     orderBy("totalScore", "desc"),
     orderBy("totalTimeMs", "asc"),
     limit(20)
@@ -298,11 +359,15 @@ document.getElementById("btnStart").addEventListener("click", async () => {
     startLeaderboardListener();
     showScreen("screen-menu");
   } catch (e) {
-    console.error(e);
-    toast("연결에 실패했습니다. firebase-config.js 설정을 확인하세요.");
+    if (e && e.code === "play-limit") {
+      toast(`이 기기에서는 ${MAX_PLAYS_PER_EVENT}회까지만 참여할 수 있어요.`);
+    } else {
+      console.error(e);
+      toast("연결에 실패했습니다. firebase-config.js 설정을 확인하세요.");
+    }
   } finally {
-    btn.disabled = false;
     btn.textContent = "미션 시작하기";
+    refreshStartAvailability(); // 제한에 걸렸다면 버튼은 비활성 유지
   }
 });
 
@@ -444,6 +509,7 @@ function resetToStart() {
   certFile = null;
   const input = document.getElementById("nicknameInput");
   if (input) input.value = "";
+  refreshStartAvailability(); // 참여 횟수를 모두 쓴 기기라면 다시 시작하지 못하게
   showScreen("screen-start");
 }
 
@@ -460,13 +526,14 @@ document.querySelectorAll(".go-home").forEach((btn) => {
 // ---------------------------------------------------------------------
 // 새로고침 등으로 재진입 시 자동 복원 시도
 // ---------------------------------------------------------------------
-(async function tryAutoResume() {
+async function tryAutoResume() {
   const sessionId = localStorage.getItem(SESSION_KEY);
   if (!sessionId) return;
   try {
     const ref = doc(db, "participants", sessionId);
     const snap = await getDoc(ref);
-    if (snap.exists()) {
+    // 다른 행사의 세션이면 복원하지 않고 새로 시작하게 둔다
+    if (snap.exists() && (snap.data().eventId || LEGACY_EVENT_ID) === state.eventId) {
       state.ref = ref;
       state.sessionId = sessionId;
       state.data = snap.data();
@@ -481,4 +548,79 @@ document.querySelectorAll(".go-home").forEach((btn) => {
   } catch (e) {
     console.warn("자동 복원 실패(최초 접속이면 정상):", e.message);
   }
+}
+
+// ---------------------------------------------------------------------
+// 행사(세션) 결정 — ?event=<ID> → 활성 행사 → 레거시(기본)
+// ---------------------------------------------------------------------
+async function resolveEvent() {
+  const idFromUrl = new URLSearchParams(location.search).get(EVENT_PARAM);
+  if (idFromUrl) {
+    try {
+      const snap = await getDoc(doc(db, "events", idFromUrl));
+      if (snap.exists()) {
+        state.eventId = snap.id;
+        state.event = snap.data();
+        return;
+      }
+      console.warn("QR의 행사 ID를 찾을 수 없습니다:", idFromUrl);
+    } catch (e) {
+      console.warn("행사 조회 실패:", e.message);
+    }
+  }
+  try {
+    const snap = await getDocs(query(collection(db, "events"), where("active", "==", true), limit(1)));
+    if (!snap.empty) {
+      state.eventId = snap.docs[0].id;
+      state.event = snap.docs[0].data();
+      return;
+    }
+  } catch (e) {
+    console.warn("활성 행사 조회 실패:", e.message);
+  }
+  state.eventId = LEGACY_EVENT_ID; // 행사를 하나도 만들지 않은 경우(기존 동작 유지)
+  state.event = null;
+}
+
+// 시작 화면에서 참가 가능 여부 갱신 (행사 기간 + 기기별 참여 횟수)
+function refreshStartAvailability() {
+  const noticeEl = document.getElementById("eventNotice");
+  const startBtn = document.getElementById("btnStart");
+  if (!noticeEl || !startBtn) return;
+
+  const { open, reason } = getEventOpenState(state.event);
+  let msg = "";
+  if (!open) {
+    msg =
+      reason === "before"
+        ? "아직 행사 시작 전입니다. 시작 시간에 다시 접속해 주세요."
+        : "종료된 행사입니다. 참여해 주셔서 감사합니다!";
+  } else if (!canPlayMore()) {
+    msg = `이 기기에서는 ${MAX_PLAYS_PER_EVENT}회까지 참여할 수 있습니다.\n다음 참가자에게 양보해 주세요!`;
+  }
+
+  noticeEl.textContent = msg;
+  noticeEl.style.display = msg ? "block" : "none";
+  startBtn.disabled = !!msg;
+}
+
+// 행사 이름/일정 표시 + 참가 가능 여부 반영
+function applyEventToUI() {
+  const nameEl = document.getElementById("eventName");
+  if (nameEl) {
+    if (state.event) {
+      nameEl.textContent = `${state.event.name} · ${formatEventPeriod(state.event)}`;
+      nameEl.style.display = "block";
+    } else {
+      nameEl.style.display = "none";
+    }
+  }
+  refreshStartAvailability();
+}
+
+(async function init() {
+  applyKioskParam(); // ?kiosk=1 로 접속한 공용 기기는 참여 횟수 제한 면제
+  await resolveEvent();
+  applyEventToUI();
+  await tryAutoResume();
 })();

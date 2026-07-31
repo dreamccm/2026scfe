@@ -7,7 +7,7 @@
 //     오프라인일 때만 캐시로 폴백한다.
 // 배포로 정적 파일을 크게 바꿀 때는 CACHE 버전을 올린다.
 // =====================================================================
-const CACHE = "avsec-hero-v1";
+const CACHE = "avsec-hero-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -15,6 +15,7 @@ const ASSETS = [
   "./js/app.js",
   "./js/missions.js",
   "./js/firebase-config.js",
+  "./js/events.js",
   "./js/html2canvas.min.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
