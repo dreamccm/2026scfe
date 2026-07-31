@@ -1,7 +1,13 @@
 import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
 import { startMission1, startMission2, startMission3, setMissionConfig } from "./missions.js";
 import { MISSION_SETTINGS_PATH, mergeMissionConfig } from "./mission-config.js";
-import { EVENT_PARAM, LEGACY_EVENT_ID, getEventOpenState, formatEventPeriod } from "./events.js";
+import {
+  EVENT_PARAM,
+  LEGACY_EVENT_ID,
+  getEventOpenState,
+  formatEventPeriod,
+  normalizeMissionOrder,
+} from "./events.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -150,30 +156,51 @@ async function getOrCreateSession(nickname) {
 // ---------------------------------------------------------------------
 // 미션 메뉴 렌더링
 // ---------------------------------------------------------------------
-const MISSION_KEYS = ["mission1", "mission2", "mission3"];
+// 이 행사에서 사용할 미션 번호와 순서 (행사 설정에 따라 일부만 쓸 수 있음)
+function missionNumbers() {
+  return normalizeMissionOrder(state.event && state.event.missionOrder);
+}
+
+// 사용 중인 미션들의 Firestore 필드명 (예: [1,3] → ["mission1","mission3"])
+function activeMissionKeys() {
+  return missionNumbers().map((n) => "mission" + n);
+}
 
 function renderMenu() {
-  MISSION_KEYS.forEach((key, idx) => {
-    const n = idx + 1;
+  const order = missionNumbers();
+  [1, 2, 3].forEach((n) => {
     const card = document.getElementById("card-" + n);
     const scoreEl = document.getElementById("score-" + n);
     const light = document.querySelector(`.runway-progress .light[data-m="${n}"]`);
-    const m = state.data[key];
+    const idx = order.indexOf(n);
+
+    // 이 행사에서 쓰지 않는 미션은 카드와 진행표시등을 모두 숨긴다
+    const used = idx !== -1;
+    card.style.display = used ? "" : "none";
+    if (light) light.style.display = used ? "" : "none";
+    if (!used) return;
+
+    // 행사에서 지정한 순서대로 배치 (flex order)
+    card.style.order = idx;
+    if (light) light.style.order = idx;
+
+    const m = state.data["mission" + n];
     if (m && m.completed) {
       card.classList.add("done");
       scoreEl.textContent = m.score;
-      light.classList.add("on");
+      if (light) light.classList.add("on");
     } else {
       card.classList.remove("done");
       scoreEl.textContent = "-";
-      light.classList.remove("on");
+      if (light) light.classList.remove("on");
     }
   });
   refreshCertButtons();
 }
 
+// 이 행사에서 쓰는 미션을 모두 끝냈는지 (미션을 줄인 행사는 줄인 만큼만 요구)
 function allMissionsDone() {
-  return MISSION_KEYS.every((k) => state.data[k] && state.data[k].completed);
+  return activeMissionKeys().every((k) => state.data[k] && state.data[k].completed);
 }
 
 // ---------------------------------------------------------------------
@@ -182,14 +209,9 @@ function allMissionsDone() {
 async function handleMissionComplete(missionKey, result) {
   state.data[missionKey] = { completed: true, score: result.score, timeMs: result.timeMs };
 
-  const totalScore = MISSION_KEYS.reduce(
-    (sum, k) => sum + (state.data[k] ? state.data[k].score : 0),
-    0
-  );
-  const totalTimeMs = MISSION_KEYS.reduce(
-    (sum, k) => sum + (state.data[k] ? state.data[k].timeMs : 0),
-    0
-  );
+  const keys = activeMissionKeys();
+  const totalScore = keys.reduce((sum, k) => sum + (state.data[k] ? state.data[k].score : 0), 0);
+  const totalTimeMs = keys.reduce((sum, k) => sum + (state.data[k] ? state.data[k].timeMs : 0), 0);
   state.data.totalScore = totalScore;
   state.data.totalTimeMs = totalTimeMs;
 

@@ -1,5 +1,12 @@
 import { firebaseConfig, setupAppCheck } from "./firebase-config.js";
-import { EVENT_PARAM, LEGACY_EVENT_ID, LEGACY_EVENT_NAME, formatEventPeriod } from "./events.js";
+import {
+  EVENT_PARAM,
+  LEGACY_EVENT_ID,
+  LEGACY_EVENT_NAME,
+  formatEventPeriod,
+  normalizeMissionOrder,
+  parseMissionOrder,
+} from "./events.js";
 import {
   MISSION_SETTINGS_PATH,
   DEFAULT_MISSION_CONFIG,
@@ -523,7 +530,7 @@ function renderEventsTable() {
 
   if (allEvents.length === 0) {
     body.innerHTML =
-      '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">등록된 행사가 없습니다. 아래에서 추가하세요.<br/>행사를 만들기 전까지는 기존과 동일하게 동작합니다.</td></tr>';
+      '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">등록된 행사가 없습니다. 아래에서 추가하세요.<br/>행사를 만들기 전까지는 기존과 동일하게 동작합니다.</td></tr>';
     return;
   }
   body.innerHTML = allEvents
@@ -534,6 +541,8 @@ function renderEventsTable() {
         <td><input type="datetime-local" class="ev-start" data-id="${e.id}" value="${escapeHtml(e.startAt || "")}" /></td>
         <td><input type="datetime-local" class="ev-end" data-id="${e.id}" value="${escapeHtml(e.endAt || "")}" /></td>
         <td><button class="reward-toggle ev-active ${e.active ? "on" : ""}" data-id="${e.id}" title="QR 없이 접속했을 때 연결될 행사"></button></td>
+        <td><input type="text" class="ev-missions" data-id="${e.id}" value="${normalizeMissionOrder(e.missionOrder).join(",")}"
+              style="width:90px" title="사용할 미션 번호를 순서대로 입력 (예: 1,2,3 또는 3,1)" /></td>
         <td>${count}</td>
         <td>
           <button class="btn btn-secondary ev-save" data-id="${e.id}">저장</button>
@@ -549,13 +558,17 @@ function renderEventsTable() {
       const name = body.querySelector(`.ev-name[data-id="${id}"]`).value.trim();
       const startAt = body.querySelector(`.ev-start[data-id="${id}"]`).value;
       const endAt = body.querySelector(`.ev-end[data-id="${id}"]`).value;
+      const missionOrder = parseMissionOrder(body.querySelector(`.ev-missions[data-id="${id}"]`).value);
       if (!name) return alert("행사명을 입력하세요.");
+      if (!missionOrder) {
+        return alert("미션 구성은 1~3 사이 번호를 중복 없이 순서대로 입력하세요. (예: 1,2,3 또는 3,1)");
+      }
       if (startAt && endAt && new Date(startAt) > new Date(endAt)) {
         return alert("종료 일시가 시작 일시보다 빠릅니다.");
       }
       btn.disabled = true;
       try {
-        await updateDoc(doc(db, "events", id), { name, startAt, endAt });
+        await updateDoc(doc(db, "events", id), { name, startAt, endAt, missionOrder });
       } catch (err) {
         console.error(err);
         alert("저장 실패: " + err.message);
@@ -633,6 +646,7 @@ document.getElementById("btnAddEvent").addEventListener("click", async () => {
       name,
       startAt: startEl.value || "",
       endAt: endEl.value || "",
+      missionOrder: [1, 2, 3], // 기본은 미션 3개 전부
       active: allEvents.length === 0, // 첫 행사는 기본 활성
       createdAt: serverTimestamp(),
     });
