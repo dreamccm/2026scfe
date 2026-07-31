@@ -98,6 +98,7 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById("adminApp").style.display = "block";
     startListener();
     loadMissionsForEdit();
+    initSiteUrlInput();
   } else {
     currentUserEmail = "";
     currentIsOwner = false;
@@ -541,7 +542,7 @@ function renderEventsTable() {
         <td><input type="text" class="ev-name" data-id="${e.id}" value="${escapeHtml(e.name || "")}" /></td>
         <td><input type="datetime-local" class="ev-start" data-id="${e.id}" value="${escapeHtml(e.startAt || "")}" /></td>
         <td><input type="datetime-local" class="ev-end" data-id="${e.id}" value="${escapeHtml(e.endAt || "")}" /></td>
-        <td><button class="reward-toggle ev-active ${e.active ? "on" : ""}" data-id="${e.id}" title="QR 없이 접속했을 때 연결될 행사"></button></td>
+        <td><button class="reward-toggle ev-active ${e.active ? "on" : ""}" data-id="${e.id}" title="진행중으로 표시 (여러 행사 동시 가능). QR 없이 접속하면 진행중인 행사 중에서 선택하게 됩니다."></button></td>
         <td><input type="text" class="ev-missions" data-id="${e.id}" value="${normalizeMissionOrder(e.missionOrder).join(",")}"
               style="width:90px" title="사용할 미션 번호를 순서대로 입력 (예: 1,2,3 또는 3,1)" /></td>
         <td>${count}</td>
@@ -584,15 +585,9 @@ function renderEventsTable() {
       const turningOn = !btn.classList.contains("on");
       btn.disabled = true;
       try {
-        // 활성 행사는 하나만 유지 (QR 없이 접속 시 연결될 행사)
-        const batch = writeBatch(db);
-        allEvents.forEach((e) => {
-          const shouldBeActive = turningOn && e.id === id;
-          if (!!e.active !== shouldBeActive) {
-            batch.update(doc(db, "events", e.id), { active: shouldBeActive });
-          }
-        });
-        await batch.commit();
+        // 여러 행사를 동시에 진행할 수 있다.
+        // 진행중인 행사가 2개 이상이면 QR 없이 접속한 참가자에게 선택 화면이 표시된다.
+        await updateDoc(doc(db, "events", id), { active: turningOn });
       } catch (err) {
         console.error(err);
         alert("변경 실패: " + err.message);
@@ -867,7 +862,25 @@ document.getElementById("btnGenQr").addEventListener("click", () => {
   updateQrTargetInfo();
 });
 
-document.getElementById("siteUrlInput").addEventListener("input", updateQrTargetInfo);
+// 참가자용 URL: 저장해 둔 값 → 없으면 현재 관리자 페이지 주소에서 추론
+const SITE_URL_KEY = "avsec_admin_site_url";
+
+function guessSiteUrl() {
+  // .../admin.html → .../ (참가자 페이지)
+  return location.href.split("?")[0].split("#")[0].replace(/admin\.html$/, "");
+}
+
+function initSiteUrlInput() {
+  const el = document.getElementById("siteUrlInput");
+  if (!el) return;
+  el.value = localStorage.getItem(SITE_URL_KEY) || guessSiteUrl();
+  updateQrTargetInfo();
+}
+
+document.getElementById("siteUrlInput").addEventListener("input", (e) => {
+  localStorage.setItem(SITE_URL_KEY, e.target.value.trim());
+  updateQrTargetInfo();
+});
 
 // ---------------------------------------------------------------------
 // 데이터 초기화 (현재 "보기 대상" 행사 범위)
